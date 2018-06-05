@@ -26,9 +26,12 @@ while True:
 
 ## Design
 The rate limiting logic uses a classic token bucket algorithm but is implemented
-entirely as a Lua Redis script.  It leverages the Redis [time](https://redis.io/commands/time)
+entirely as a Lua Redis script.  It leverages the Redis [TIME](https://redis.io/commands/time)
 command which ensures fair microsecond resolution across all callers independent
 of the caller's clock.  Note that buckets start and end on whole seconds.
+
+Redis 3.2+ is required because `replicate_commands()` is used to support using
+the `TIME` command in a Lua script.
 
 ## Configuring
 Default values for RPS, burst factor and window size are supplied to the throttle
