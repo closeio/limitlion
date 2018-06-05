@@ -1,0 +1,164 @@
+"""Token bucket throttle backed by Redis."""
+
+import os
+import time
+
+KEY_FORMAT = 'throttle:{}'
+
+throttle_script = None
+redis = None
+
+
+def _validate_throttle(key, params):
+    check_values_pipe = redis.pipeline()
+    for param, param_name in params:
+        if param is None:
+            check_values_pipe.hexists(key, param_name)
+    if not all(check_values_pipe.execute()):
+        raise IndexError("Throttle knob {} doesn't exist or is invalid"
+                         .format(key))
+
+
+def _verify_configured():
+    if not redis or not throttle_script:
+        raise RuntimeError('Throttle is not configured')
+
+
+def throttle(name, rps, burst=1, window=5, requested_tokens=1):
+    """
+    Throttle that allows orchestration of distributed workers.
+
+    Args:
+        name: Name of throttle.  Used as part of the Redis key.
+        rps: Default requests per second allowed by this throttle
+        burst: Default burst multiplier
+        window: Default limit window in seconds
+        requested_tokens: Number of tokens required for this work request
+
+    Returns:
+        allowed: True if work is allowed
+        tokens: Number of tokens left in throttle bucket
+        sleep: Seconds before next limit window starts.  If work is
+               not allowed you should sleep this many seconds. (float)
+
+    The first use of a throttle will set the default values in redis for
+    rps, burst, and window. Subsequent calls will use the values stored in
+    Redis. This allows changes to the throttle knobs to be made on the fly by
+    simply changing the values stored in redis.
+
+    See throttle_set function to set the throttle.
+
+    Setting RPS to 0 causes all work requests to be denied and a full sleep.
+    Setting RPS to -1 causes all work requests to be allowed.
+
+    """
+
+    _verify_configured()
+    allowed, tokens, sleep = throttle_script(keys=[],
+                                             args=[KEY_FORMAT.format(name),
+                                                   rps, burst, window,
+                                                   requested_tokens])
+    # Converting the string sleep to a float causes floating point rounding
+    # issues that limits having true microsecond resolution for the sleep
+    # value.
+    return allowed == 1, int(tokens), float(sleep)
+
+
+def throttle_configure(redis_instance, testing=False):
+    """Register Lua throttle script in Redis."""
+
+    global redis, throttle_script
+    redis = redis_instance
+
+    with open(os.path.join(
+              os.path.dirname(os.path.realpath(__file__)),
+              'throttle.lua')) as f:
+        lua_script = f.read()
+
+    # Modify scripts when testing so time can be frozen
+    if testing:
+        lua_script = \
+            lua_script.replace(
+                'local time = redis.call("time")',
+                'local time\n'
+                'if redis.call("exists", "frozen_second") == 1 then\n'
+                '  time = redis.call("mget", "frozen_second", "frozen_microsecond")\n'  # noqa: E501
+                'else\n'
+                '  time = redis.call("time")\n'
+                'end')
+    throttle_script = redis.register_script(lua_script)
+
+
+def throttle_get(name):
+    """
+    Get throttle values from redis.
+
+    Returns: (tokens, refreshed, rps, burst, window)
+
+    """
+
+    key = KEY_FORMAT.format(name) + ':knobs'
+
+    # Get each value in hashes individually in case they don't exist
+    get_values_pipe = redis.pipeline()
+    key = KEY_FORMAT.format(name)
+    get_values_pipe.hget(key, 'tokens')
+    get_values_pipe.hget(key, 'refreshed')
+
+    key = KEY_FORMAT.format(name) + ':knobs'
+    get_values_pipe.hget(key, 'rps')
+    get_values_pipe.hget(key, 'burst')
+    get_values_pipe.hget(key, 'window')
+
+    values = get_values_pipe.execute()
+    return values
+
+
+def throttle_reset(name):
+    """Reset throttle settings."""
+
+    _verify_configured()
+    key = KEY_FORMAT.format(name) + ':knobs'
+    redis.delete(key)
+
+
+def throttle_set(name, rps=None, burst=None, window=None):
+    """Adjust throttle values in redis."""
+
+    _verify_configured()
+    key = KEY_FORMAT.format(name) + ':knobs'
+
+    params = [(rps, 'rps'), (burst, 'burst'), (window, 'window')]
+    _validate_throttle(key, params)
+
+    set_values_pipe = redis.pipeline()
+    for param, param_name in params:
+        if param is not None:
+            set_values_pipe.hset(key, param_name, param)
+
+    set_values_pipe.execute()
+
+
+def throttle_wait(name, *args, **kwargs):
+    """Sleeps time specified by throttle if needed.
+
+    This will wait potentially forever to get permission to do work
+
+    Usage:
+    throttle = throttle_wait('name', rps=123)
+    for ...:
+        throttle()
+        do_work()
+    """
+
+    def throttle_func(requested_tokens=1):
+        allowed, tokens, sleep = throttle(name, *args,
+                                          requested_tokens=requested_tokens,
+                                          **kwargs)
+        while not allowed:
+            time.sleep(sleep)
+            allowed, tokens, sleep = throttle(name, *args,
+                                              requested_tokens=requested_tokens,
+                                              **kwargs)
+
+    return throttle_func

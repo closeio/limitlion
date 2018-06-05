@@ -1,0 +1,28 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: ubuntu:18.04
+      - image: redis:3.2
+    working_directory: /home/ubuntu/
+    steps:
+      - checkout
+      - run:
+          name: Prepare environment
+          command: |
+            apt-get update
+            apt-get install -y python python3 python-pip python3-pip lua5.1 luarocks
+            pip install tox flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
+            luarocks install luacheck
+      - run:
+          name: Run flake8
+          command: flake8
+      - run:
+          name: Check imports
+          command: isort -rc -c .
+      - run:
+          name: Lua check
+          command: luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
+      - run:
+          name: Run tests
+          command: tox
