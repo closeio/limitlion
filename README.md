@@ -11,7 +11,8 @@ orchestrating queue consumer processes, or enforcing HTTP request rate limits.
 Following is a simple example of a throttle named `test` that allows `5` requests per second (RPS) with
 a burst factor of `2` using a `8` second window and requesting `1` token (default)
 for each unit of work.  Look in the `examples` directory for more.
-```
+
+```py
 redis = redis.Redis('localhost', 6379)
 throttle_configure(redis)
 while True:
@@ -22,7 +23,6 @@ while True:
         print ('Sleeping {}'.format(sleep))
         time.sleep(sleep)
 ```
-
 
 ## Design
 The rate limiting logic uses a classic token bucket algorithm but is implemented
