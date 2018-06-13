@@ -14,8 +14,8 @@ REDIS_DB = 1
 
 TEST_PARAMETERS = []
 for window in (1, 2, 5, 10):
-    for burst in (1, 2, 10):
-        for rps in (.0001, .2, .5, .6, 1, 2, 5, 10):
+    for burst in (1, 2, 3.3, 10):
+        for rps in (.0001, .2, .5, .6, 1, 2, 2.2, 5, 10):
             TEST_PARAMETERS.append((rps, burst, window))
 
 
