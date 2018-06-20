@@ -1,5 +1,6 @@
 """LimitLion tests."""
 
+import math
 import time
 
 import pytest
@@ -13,8 +14,8 @@ REDIS_DB = 1
 
 TEST_PARAMETERS = []
 for window in (1, 2, 5, 10):
-    for burst in (1, 2, 10):
-        for rps in (2, 5, 10):
+    for burst in (1, 2, 3.3, 10):
+        for rps in (.0001, .2, .5, .6, 1, 2, 2.2, 5, 10):
             TEST_PARAMETERS.append((rps, burst, window))
 
 
@@ -87,7 +88,7 @@ class TestThrottle():
     def test_bursting(self, rps, burst, window):
         """Test bursting logic."""
 
-        capacity = rps * burst * window
+        capacity = math.ceil(rps * burst * window)
         start_time = int(time.time())
         self._freeze_redis_time(start_time, 0)
 
@@ -104,7 +105,7 @@ class TestThrottle():
         self._freeze_redis_time(start_time + 2 * window, 500000)
         allowed, tokens, sleep = self._fake_work('test', rps, burst, window)
         assert allowed is True
-        assert tokens == (rps * window) - 1
+        assert tokens == math.ceil(rps * window) - 1
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
     def test_zero_rps(self, rps, burst, window):
@@ -133,7 +134,7 @@ class TestThrottle():
                                                  (rps * burst * window) + 1)
         assert allowed is False
         assert sleep <= window
-        assert tokens == rps * burst * window
+        assert tokens == math.ceil(rps * burst * window)
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
     def test_multiple_throttles(self, rps, burst, window):
@@ -162,13 +163,14 @@ class TestThrottle():
         assert allowed is False
         assert tokens == 0
 
-        # Second throttle
+        # Second throttle, add +1 to RPS just to test with a different value
+        # for the second throttle
         allowed, tokens, sleep = self._fake_work(throttle_name_2,
                                                  rps + 1, burst, window)
         assert allowed is True
-        assert tokens == 2
+        assert tokens == min(math.ceil((rps + 1) * window * burst), 3) - 1
 
-        # Confirm second throttle is still out of tokens
+        # Confirm first throttle is still out of tokens
         allowed, tokens, sleep = self._fake_work(throttle_name_1,
                                                  rps, burst, window)
         assert allowed is False
@@ -180,7 +182,14 @@ class TestThrottle():
 
         # Don't include burst in this capacity because we don't start with
         # an empty bucket which is when burst tokens are available
-        capacity = rps * window
+        capacity = math.ceil(rps * window)
+
+        # Max capacity is needed because the Lua script will fix buckets
+        # that we add too many tokens with a call to _fake_bucket_tokens.
+        # For example, setting tokens to 2 with rps, burst, window = 1 is
+        # technically too many tokens in that bucket.
+        max_capacity = math.ceil(rps * window * burst)
+
         throttle_name = 'test'
         throttle_redis_key = self._get_redis_key(throttle_name)
 
@@ -194,12 +203,12 @@ class TestThrottle():
         allowed, tokens, sleep = self._fake_work(throttle_name,
                                                  rps, burst, window)
         assert allowed is True
-        assert tokens == 1
+        assert tokens == min(max_capacity, 2) - 1
 
-        # Second call should still be under limit
+        # Second call may be allowed depending on RPS
         allowed, tokens, sleep = self._fake_work(throttle_name,
                                                  rps, burst, window)
-        assert allowed is True
+        assert allowed is (min(max_capacity, 2) - 1 > 0)
         assert tokens == 0
 
         # Third call should be over limit
