@@ -9,7 +9,7 @@ import redis
 import limitlion
 
 REDIS_HOST = 'localhost'
-REDIS_PORT = 6379
+REDIS_PORT = 36379
 REDIS_DB = 1
 
 TEST_PARAMETERS = []
@@ -286,6 +286,17 @@ class TestThrottle():
         assert int(rps) == 5
         assert int(burst) == 2
         assert int(window) == 6
+
+    def test_delete_throttle(self):
+        """Test throttle delete."""
+
+        throttle_name = 'test'
+        self._fake_work(throttle_name, 5, 1, 5)
+
+        limitlion.throttle_delete(throttle_name)
+        key = self._get_redis_key(throttle_name)
+        assert self.redis.exists(key) is False
+        assert self.redis.exists(key + ':knobs') is False
 
     def test_throttle_wait(self):
         """
