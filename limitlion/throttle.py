@@ -99,6 +99,7 @@ def throttle_delete(name):
     pipeline.delete(key + ':knobs')
     pipeline.execute()
 
+
 def throttle_get(name):
     """
     Get throttle values from redis.

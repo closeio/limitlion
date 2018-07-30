@@ -12,7 +12,7 @@ tests_require = install_requires + [
 
 setup(
     name='limitlion',
-    version='0.9',
+    version='0.9.1',
     url='http://github.com/closeio/limitlion',
     description='Close.io LimitLion',
     platforms='any',
