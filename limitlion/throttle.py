@@ -90,7 +90,7 @@ def throttle_configure(redis_instance, testing=False):
 
 
 def throttle_delete(name):
-    """Reset throttle."""
+    """Delete Redis throttle data."""
 
     _verify_configured()
     key = KEY_FORMAT.format(name)
