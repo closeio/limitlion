@@ -89,6 +89,17 @@ def throttle_configure(redis_instance, testing=False):
     throttle_script = redis.register_script(lua_script)
 
 
+def throttle_delete(name):
+    """Delete Redis throttle data."""
+
+    _verify_configured()
+    key = KEY_FORMAT.format(name)
+    pipeline = redis.pipeline()
+    pipeline.delete(key)
+    pipeline.delete(key + ':knobs')
+    pipeline.execute()
+
+
 def throttle_get(name):
     """
     Get throttle values from redis.

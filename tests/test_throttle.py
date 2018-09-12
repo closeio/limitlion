@@ -287,6 +287,17 @@ class TestThrottle():
         assert int(burst) == 2
         assert int(window) == 6
 
+    def test_delete_throttle(self):
+        """Test throttle delete."""
+
+        throttle_name = 'test'
+        self._fake_work(throttle_name, 5, 1, 5)
+
+        limitlion.throttle_delete(throttle_name)
+        key = self._get_redis_key(throttle_name)
+        assert self.redis.exists(key) is False
+        assert self.redis.exists(key + ':knobs') is False
+
     def test_throttle_wait(self):
         """
         Test wait helper method.
