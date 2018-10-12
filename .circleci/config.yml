@@ -27,7 +27,7 @@ jobs:
           name: Setup Code Climate
           command: |
             apt-get update
-            apt-get install -y curl
+            apt-get install -y curl git
             curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
             chmod +x ./cc-test-reporter
       - run:
