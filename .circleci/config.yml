@@ -24,5 +24,15 @@ jobs:
           name: Lua check
           command: luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
       - run:
+          name: Setup Code Climate
+          command: |
+            apt-get update
+            apt-get install -y curl git
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+            chmod +x ./cc-test-reporter
+      - run:
           name: Run tests
-          command: tox
+          command: |
+            CC_TEST_REPORTER_ID=6f36aa7588e0d2a3e3cb8bd3384fdca77f1e3e471fb5471a9b7df05817021d87 ./cc-test-reporter before-build
+            tox
+            CC_TEST_REPORTER_ID=6f36aa7588e0d2a3e3cb8bd3384fdca77f1e3e471fb5471a9b7df05817021d87 ./cc-test-reporter after-build --coverage-input-type coverage.py --exit-code $?
