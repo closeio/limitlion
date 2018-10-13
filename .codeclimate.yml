@@ -3,3 +3,6 @@ checks:
   argument-count:
     config:
       threshold: 5
+plugins:
+  SonarPython:
+    enabled: true
