@@ -33,6 +33,6 @@ jobs:
       - run:
           name: Run tests
           command: |
-            CC_TEST_REPORTER_ID=6f36aa7588e0d2a3e3cb8bd3384fdca77f1e3e471fb5471a9b7df05817021d87 ./cc-test-reporter before-build
+            ./cc-test-reporter before-build
             tox
-            CC_TEST_REPORTER_ID=6f36aa7588e0d2a3e3cb8bd3384fdca77f1e3e471fb5471a9b7df05817021d87 ./cc-test-reporter after-build --coverage-input-type coverage.py --exit-code $?
+            ./cc-test-reporter after-build --coverage-input-type coverage.py --exit-code $?
