@@ -278,7 +278,8 @@ class TestThrottle():
 
         self._freeze_redis_time(start_time, 0)
 
-        self._fake_work(throttle_name, 5, 2, 6)
+        limitlion.throttle_set(throttle_name, 5, 2, 6)
+        self._fake_work(throttle_name)
         tokens, refreshed, rps, burst, window = \
             limitlion.throttle_get(throttle_name)
         assert int(tokens) == 59
