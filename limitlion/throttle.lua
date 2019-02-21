@@ -106,10 +106,12 @@ local window
 
 -- Lookup throttle knob settings
 local knobs_key = name .. ":knobs"
+-- Use
+--   HMSET <knobs_key> rps <rps> burst <burst> window <window>
+-- to manually override the setting for any throttle.
 local knobs = redis.call("HMGET", knobs_key, "rps", "burst", "window")
 if knobs[1] == false then
   -- Set defaults if knobs hash is not found
-  redis.call("HMSET", knobs_key, "rps", default_rps, "burst", default_burst, "window", default_window)
   rps = tonumber(default_rps)
   burst = tonumber(default_burst)
   window = tonumber(default_window)
