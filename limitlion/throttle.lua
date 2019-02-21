@@ -111,7 +111,7 @@ local knobs_key = name .. ":knobs"
 -- to manually override the setting for any throttle.
 local knobs = redis.call("HMGET", knobs_key, "rps", "burst", "window")
 if knobs[1] == false then
-  -- Set defaults if knobs hash is not found
+  -- Use defaults if knobs hash is not found
   rps = tonumber(default_rps)
   burst = tonumber(default_burst)
   window = tonumber(default_window)
@@ -119,9 +119,9 @@ else
   rps = tonumber(knobs[1])
   burst = tonumber(knobs[2])
   window = tonumber(knobs[3])
+  -- Expire knobs hash 7 days after last time used
+  redis.call("EXPIRE", knobs_key, 604800)
 end
--- Expire knobs hash 7 days after last time used
-redis.call("EXPIRE", knobs_key, 604800)
 
 -- Use redis server time so it is consistent across callers
 -- The following line gets replaced before loading this script during tests
