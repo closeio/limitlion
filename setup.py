@@ -14,7 +14,7 @@ setup(
     name='limitlion',
     version='0.9.1',
     url='http://github.com/closeio/limitlion',
-    description='Close.io LimitLion',
+    description='Close LimitLion',
     platforms='any',
     classifiers=[
         'Intended Audience :: Developers',
