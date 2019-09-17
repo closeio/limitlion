@@ -9,4 +9,7 @@ __all__ = ['throttle',
            'throttle_reset',
            'throttle_set',
            'throttle_wait',
+           'THROTTLE_BURST_DEFAULT',
+           'THROTTLE_WINDOW_DEFAULT',
+           'THROTTLE_REQUESTED_TOKENS_DEFAULT',
            ]

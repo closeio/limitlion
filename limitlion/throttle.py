@@ -6,6 +6,11 @@ import pkg_resources
 
 KEY_FORMAT = 'throttle:{}'
 
+# throttle knob defaults
+THROTTLE_BURST_DEFAULT = 1
+THROTTLE_WINDOW_DEFAULT = 5
+THROTTLE_REQUESTED_TOKENS_DEFAULT = 1
+
 throttle_script = None
 redis = None
 
@@ -25,7 +30,13 @@ def _verify_configured():
         raise RuntimeError('Throttle is not configured')
 
 
-def throttle(name, rps, burst=1, window=5, requested_tokens=1):
+def throttle(
+    name,
+    rps,
+    burst=THROTTLE_BURST_DEFAULT,
+    window=THROTTLE_WINDOW_DEFAULT,
+    requested_tokens=THROTTLE_REQUESTED_TOKENS_DEFAULT,
+):
     """
     Throttle that allows orchestration of distributed workers.
 
