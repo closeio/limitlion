@@ -15,11 +15,11 @@ REDIS_DB = 1
 TEST_PARAMETERS = []
 for window in (1, 2, 5, 10):
     for burst in (1, 2, 3.3, 10):
-        for rps in (.0001, .2, .5, .6, 1, 2, 2.2, 5, 10):
+        for rps in (0.0001, 0.2, 0.5, 0.6, 1, 2, 2.2, 5, 10):
             TEST_PARAMETERS.append((rps, burst, window))
 
 
-class TestThrottleNotConfigured():
+class TestThrottleNotConfigured:
     """
     Tests throttle configuration check.
 
@@ -32,7 +32,7 @@ class TestThrottleNotConfigured():
         assert 'Throttle is not configured' in str(excinfo.value)
 
 
-class TestThrottle():
+class TestThrottle:
     """
     Tests throttle.
     """
@@ -49,8 +49,7 @@ class TestThrottle():
         return limitlion.KEY_FORMAT.format(name)
 
     def _fake_work(self, key, rps=5, burst=1, window=5, requested_tokens=1):
-        return limitlion.throttle(key, rps, burst,
-                                           window, requested_tokens)
+        return limitlion.throttle(key, rps, burst, window, requested_tokens)
 
     @staticmethod
     def _get_microseconds(time):
@@ -97,8 +96,9 @@ class TestThrottle():
         assert tokens == capacity - 1
 
         self._freeze_redis_time(start_time + window, 500000)
-        allowed, tokens, sleep = self._fake_work('test', rps, burst,
-                                                 window, capacity)
+        allowed, tokens, sleep = self._fake_work(
+            'test', rps, burst, window, capacity
+        )
         assert allowed is True
         assert tokens == 0
 
@@ -120,8 +120,9 @@ class TestThrottle():
     def test_request_all_tokens(self, rps, burst, window):
         """Test request all tokens in one request."""
 
-        allowed, tokens, sleep = self._fake_work('test', rps, burst, window,
-                                                 (rps * burst * window))
+        allowed, tokens, sleep = self._fake_work(
+            'test', rps, burst, window, (rps * burst * window)
+        )
         assert allowed is True
         assert sleep <= window
         assert tokens == 0
@@ -130,8 +131,9 @@ class TestThrottle():
     def test_request_too_many_tokens(self, rps, burst, window):
         """Test requesting capacity plus 1."""
 
-        allowed, tokens, sleep = self._fake_work('test', rps, burst, window,
-                                                 (rps * burst * window) + 1)
+        allowed, tokens, sleep = self._fake_work(
+            'test', rps, burst, window, (rps * burst * window) + 1
+        )
         assert allowed is False
         assert sleep <= window
         assert tokens == math.ceil(rps * burst * window)
@@ -153,26 +155,30 @@ class TestThrottle():
         # Set time 4 microseconds into the first second of this window
         self._freeze_redis_time(start_time, 4)
 
-        allowed, tokens, sleep = self._fake_work(throttle_name_1,
-                                                 rps, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name_1, rps, burst, window
+        )
         assert allowed is True
         assert tokens == 0
 
-        allowed, tokens, sleep = self._fake_work(throttle_name_1,
-                                                 rps, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name_1, rps, burst, window
+        )
         assert allowed is False
         assert tokens == 0
 
         # Second throttle, add +1 to RPS just to test with a different value
         # for the second throttle
-        allowed, tokens, sleep = self._fake_work(throttle_name_2,
-                                                 rps + 1, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name_2, rps + 1, burst, window
+        )
         assert allowed is True
         assert tokens == min(math.ceil((rps + 1) * window * burst), 3) - 1
 
         # Confirm first throttle is still out of tokens
-        allowed, tokens, sleep = self._fake_work(throttle_name_1,
-                                                 rps, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name_1, rps, burst, window
+        )
         assert allowed is False
         assert tokens == 0
 
@@ -200,35 +206,41 @@ class TestThrottle():
         self._freeze_redis_time(start_time, 4)
 
         # Fist call should be under limit
-        allowed, tokens, sleep = self._fake_work(throttle_name,
-                                                 rps, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name, rps, burst, window
+        )
         assert allowed is True
         assert tokens == min(max_capacity, 2) - 1
 
         # Second call may be allowed depending on RPS
-        allowed, tokens, sleep = self._fake_work(throttle_name,
-                                                 rps, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name, rps, burst, window
+        )
         assert allowed is (min(max_capacity, 2) - 1 > 0)
         assert tokens == 0
 
         # Third call should be over limit
-        allowed, tokens, sleep = self._fake_work(throttle_name,
-                                                 rps, burst, window)
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name, rps, burst, window
+        )
         assert allowed is False
         assert tokens == 0
         # This might need to be switched to checking if it is within +/- 1
         # microsecond to deal with floating point rounding madness.
-        assert sleep == window - .000004
+        assert sleep == window - 0.000004
 
         # Call should succeed if we come back exactly at the sleep time.
         # Next window starts at:
         # start_time + whole seconds of sleep + microseconds of sleep + initial
         # 4 microsecond of start time
         # Floating point comparison madness with + 4 versus + 5
-        self._freeze_redis_time(int(start_time) + int(sleep),
-                                TestThrottle._get_microseconds(sleep) + 5)
-        allowed, tokens, sleep = self._fake_work(throttle_name,
-                                                 rps, burst, window)
+        self._freeze_redis_time(
+            int(start_time) + int(sleep),
+            TestThrottle._get_microseconds(sleep) + 5,
+        )
+        allowed, tokens, sleep = self._fake_work(
+            throttle_name, rps, burst, window
+        )
         assert allowed is True
         assert tokens == capacity - 1
 
@@ -280,8 +292,9 @@ class TestThrottle():
 
         limitlion.throttle_set(throttle_name, 5, 2, 6)
         self._fake_work(throttle_name)
-        tokens, refreshed, rps, burst, window = \
-            limitlion.throttle_get(throttle_name)
+        tokens, refreshed, rps, burst, window = limitlion.throttle_get(
+            throttle_name
+        )
         assert int(tokens) == 59
         assert int(refreshed) == start_time
         assert int(rps) == 5

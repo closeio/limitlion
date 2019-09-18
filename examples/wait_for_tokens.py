@@ -19,4 +19,4 @@ throttle = throttle_wait('test_wait', rps=5)
 while True:
     # May sleep forever if tokens never become available
     throttle()
-    print ('{} Doing work'.format(datetime.datetime.now()))
+    print('{} Doing work'.format(datetime.datetime.now()))

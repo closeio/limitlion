@@ -27,9 +27,10 @@ while True:
     allowed, tokens, sleep = throttle('test_simple', 5, 4, 2)
     if allowed:
         i += 1
-        print ('{}-{} Work number {}'.format(datetime.datetime.now(),
-                                             tokens, i))
+        print(
+            '{}-{} Work number {}'.format(datetime.datetime.now(), tokens, i)
+        )
     else:
-        print ('Sleeping {}'.format(sleep))
+        print('Sleeping {}'.format(sleep))
         time.sleep(sleep)
         i = 0
