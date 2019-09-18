@@ -1,9 +1,9 @@
 defaults: &defaults
   working_directory: /home/ubuntu/
 
-setup: &setup
-  - checkout
-  - run:
+setup:
+  - &prepare
+    run:
       name: Prepare environment
       command: |
         apt-get update
@@ -12,15 +12,13 @@ setup: &setup
         pip install --no-deps -r requirements.txt
         pip install --no-deps -r requirements_test.txt
         luarocks install luacheck
-  - run:
+  - &lint
+    run:
       name: Run flake8
-      command: flake8
-  - run:
-      name: Check imports
-      command: isort -rc -c .
-  - run:
-      name: Lua check
-      command: luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
+      command: |
+        flake8
+        isort -rc -c .
+        luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
 
 version: 2
 jobs:
@@ -30,7 +28,9 @@ jobs:
       - image: python:2.7
       - image: redis:3.2
     steps:
-      <<: *setup
+      - checkout
+      - *prepare
+      - *lint
       - run:
           name: Setup Code Climate
           command: |
@@ -51,7 +51,9 @@ jobs:
       - image: python:3.5
       - image: redis:3.2
     steps:
-      <<: *setup
+      - checkout
+      - *prepare
+      - *lint
       - run:
           name: Run tests
           command: |
@@ -63,7 +65,9 @@ jobs:
       - image: python:3.6
       - image: redis:3.2
     steps:
-      <<: *setup
+      - checkout
+      - *prepare
+      - *lint
       - run:
           name: Run tests
           command: |
@@ -75,7 +79,9 @@ jobs:
       - image: python:3.7
       - image: redis:3.2
     steps:
-      <<: *setup
+      - checkout
+      - *prepare
+      - *lint
       - run:
           name: Run tests
           command: |
