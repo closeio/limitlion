@@ -1,28 +1,36 @@
+defaults: &defaults
+  working_directory: /home/ubuntu/
+
+setup: &setup
+  - checkout
+  - run:
+      name: Prepare environment
+      command: |
+        apt-get update
+        apt-get install -y lua5.1 luarocks
+        pip install flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
+        pip install --no-deps -r requirements.txt
+        pip install --no-deps -r requirements_test.txt
+        luarocks install luacheck
+  - run:
+      name: Run flake8
+      command: flake8
+  - run:
+      name: Check imports
+      command: isort -rc -c .
+  - run:
+      name: Lua check
+      command: luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
+
 version: 2
 jobs:
-  build:
+  python27:
+    <<: *defaults
     docker:
-      - image: ubuntu:18.04
+      - image: python:2.7
       - image: redis:3.2
-    working_directory: /home/ubuntu/
     steps:
-      - checkout
-      - run:
-          name: Prepare environment
-          command: |
-            apt-get update
-            apt-get install -y python python3 python-pip python3-pip lua5.1 luarocks
-            pip install tox flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
-            luarocks install luacheck
-      - run:
-          name: Run flake8
-          command: flake8
-      - run:
-          name: Check imports
-          command: isort -rc -c .
-      - run:
-          name: Lua check
-          command: luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
+      <<: *setup
       - run:
           name: Setup Code Climate
           command: |
@@ -34,5 +42,50 @@ jobs:
           name: Run tests
           command: |
             ./cc-test-reporter before-build
-            tox
+            pytest
             ./cc-test-reporter after-build --coverage-input-type coverage.py --exit-code $?
+
+  python35:
+    <<: *defaults
+    docker:
+      - image: python:3.5
+      - image: redis:3.2
+    steps:
+      <<: *setup
+      - run:
+          name: Run tests
+          command: |
+            pytest
+
+  python36:
+    <<: *defaults
+    docker:
+      - image: python:3.6
+      - image: redis:3.2
+    steps:
+      <<: *setup
+      - run:
+          name: Run tests
+          command: |
+            pytest
+
+  python37:
+    <<: *defaults
+    docker:
+      - image: python:3.7
+      - image: redis:3.2
+    steps:
+      <<: *setup
+      - run:
+          name: Run tests
+          command: |
+            pytest
+
+workflows:
+  version: 2
+  workflow:
+    jobs:
+      - python27
+      - python35
+      - python36
+      - python37
