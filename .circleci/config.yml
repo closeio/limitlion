@@ -42,7 +42,7 @@ jobs:
           name: Run tests
           command: |
             ./cc-test-reporter before-build
-            pytest
+            PYTHONPATH=. pytest
             ./cc-test-reporter after-build --coverage-input-type coverage.py --exit-code $?
 
   python35:
@@ -57,7 +57,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            pytest
+            PYTHONPATH=. pytest
 
   python36:
     <<: *defaults
@@ -71,7 +71,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            pytest
+            PYTHONPATH=. pytest
 
   python37:
     <<: *defaults
@@ -85,7 +85,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            pytest
+            PYTHONPATH=. pytest
 
 workflows:
   version: 2
