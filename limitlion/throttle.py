@@ -21,8 +21,9 @@ def _validate_throttle(key, params):
         if param is None:
             check_values_pipe.hexists(key, param_name)
     if not all(check_values_pipe.execute()):
-        raise IndexError("Throttle knob {} doesn't exist or is invalid"
-                         .format(key))
+        raise IndexError(
+            "Throttle knob {} doesn't exist or is invalid".format(key)
+        )
 
 
 def _verify_configured():
@@ -66,10 +67,10 @@ def throttle(
     """
 
     _verify_configured()
-    allowed, tokens, sleep = throttle_script(keys=[],
-                                             args=[KEY_FORMAT.format(name),
-                                                   rps, burst, window,
-                                                   requested_tokens])
+    allowed, tokens, sleep = throttle_script(
+        keys=[],
+        args=[KEY_FORMAT.format(name), rps, burst, window, requested_tokens],
+    )
     # Converting the string sleep to a float causes floating point rounding
     # issues that limits having true microsecond resolution for the sleep
     # value.
@@ -88,15 +89,15 @@ def throttle_configure(redis_instance, testing=False):
 
     # Modify scripts when testing so time can be frozen
     if testing:
-        lua_script = \
-            lua_script.replace(
-                'local time = redis.call("time")',
-                'local time\n'
-                'if redis.call("exists", "frozen_second") == 1 then\n'
-                '  time = redis.call("mget", "frozen_second", "frozen_microsecond")\n'  # noqa: E501
-                'else\n'
-                '  time = redis.call("time")\n'
-                'end')
+        lua_script = lua_script.replace(
+            'local time = redis.call("time")',
+            'local time\n'
+            'if redis.call("exists", "frozen_second") == 1 then\n'
+            '  time = redis.call("mget", "frozen_second", "frozen_microsecond")\n'  # noqa: E501
+            'else\n'
+            '  time = redis.call("time")\n'
+            'end',
+        )
     throttle_script = redis.register_script(lua_script)
 
 
@@ -174,13 +175,13 @@ def throttle_wait(name, *args, **kwargs):
     """
 
     def throttle_func(requested_tokens=1):
-        allowed, tokens, sleep = throttle(name, *args,
-                                          requested_tokens=requested_tokens,
-                                          **kwargs)
+        allowed, tokens, sleep = throttle(
+            name, *args, requested_tokens=requested_tokens, **kwargs
+        )
         while not allowed:
             time.sleep(sleep)
-            allowed, tokens, sleep = throttle(name, *args,
-                                              requested_tokens=requested_tokens,
-                                              **kwargs)
+            allowed, tokens, sleep = throttle(
+                name, *args, requested_tokens=requested_tokens, **kwargs
+            )
 
     return throttle_func
