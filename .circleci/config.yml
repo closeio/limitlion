@@ -11,7 +11,10 @@ jobs:
           name: Prepare environment
           command: |
             apt-get update
-            apt-get install -y python python3 python-pip python3-pip lua5.1 luarocks
+            apt-get install -y software-properties-common
+            add-apt-repository -y ppa:deadsnakes/ppa
+            apt-get update
+            apt-get install -y python python3 python3.5 python-pip python3-pip lua5.1 luarocks
             pip install tox flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
             luarocks install luacheck
       - run:
