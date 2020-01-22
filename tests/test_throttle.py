@@ -281,6 +281,24 @@ class TestThrottle:
         assert allowed is True
         assert tokens == 99
 
+    @pytest.mark.parametrize('value', ['a', -100, '-100'])
+    def test_setting_invalid_throttle_values(self, value):
+        """Tests setting throttle values that are not
+        positive floats.
+        """
+        throttle_name = 'test'
+
+        start_time = int(time.time())
+
+        self._freeze_redis_time(start_time, 0)
+
+        with pytest.raises(ValueError) as excinfo:
+            limitlion.throttle_set(throttle_name, value, 2, 6)
+        assert (
+            '"{}" is not a valid throttle value. Throttle values must '
+            'be positive floats.'.format(value)
+        ) in str(excinfo.value)
+
     def test_get_throttle(self):
         """Test getting throttle settings."""
 

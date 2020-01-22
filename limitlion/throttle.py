@@ -157,6 +157,14 @@ def throttle_set(name, rps=None, burst=None, window=None):
     set_values_pipe = redis.pipeline()
     for param, param_name in params:
         if param is not None:
+            # Throttle values can only be positive floats
+            try:
+                assert float(param) >= 0
+            except (ValueError, AssertionError):
+                raise ValueError(
+                    '"{}" is not a valid throttle value. Throttle values must '
+                    'be positive floats.'.format(param)
+                )
             set_values_pipe.hset(key, param_name, param)
 
     set_values_pipe.execute()
