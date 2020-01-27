@@ -18,7 +18,16 @@ redis = None
 def _validate_throttle(key, params):
     check_values_pipe = redis.pipeline()
     for param, param_name in params:
-        if param is None:
+        if param is not None:
+            # Throttle values can only be positive floats
+            try:
+                assert float(param) >= 0
+            except (ValueError, AssertionError):
+                raise ValueError(
+                    '"{}" is not a valid throttle value. Throttle values must '
+                    'be positive floats.'.format(param)
+                )
+        else:
             check_values_pipe.hexists(key, param_name)
     if not all(check_values_pipe.execute()):
         raise IndexError(
