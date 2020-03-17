@@ -12,7 +12,7 @@ import time
 
 import redis
 
-from limitlion import throttle, throttle_configure, throttle_reset
+from limitlion import throttle, throttle_configure
 
 redis = redis.Redis('localhost', 32768)
 
