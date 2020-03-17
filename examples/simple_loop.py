@@ -14,7 +14,7 @@ import redis
 
 from limitlion import throttle, throttle_configure
 
-redis = redis.Redis('localhost', 32768)
+redis = redis.Redis('localhost', 6379)
 
 throttle_configure(redis)
 
