@@ -10,6 +10,8 @@ blog post.  Can be used to control processing rates from one to many processes.
 Potential implementations include protecting databases from high processing rates,
 orchestrating queue consumer processes, or enforcing HTTP request rate limits.
 
+Install with: `pip install limitlion`
+
 Following is a simple example of a throttle named `test` that allows `5` requests per second (RPS) with
 a burst factor of `2` using a `8` second window and requesting `1` token (default)
 for each unit of work.  Look in the `examples` directory for more.
