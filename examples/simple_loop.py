@@ -12,15 +12,11 @@ import time
 
 import redis
 
-from limitlion import throttle, throttle_configure, throttle_reset
+from limitlion import throttle, throttle_configure
 
 redis = redis.Redis('localhost', 6379)
 
 throttle_configure(redis)
-# The default settings have a TTL of 7 days so we reset for this example
-# script so changes to the defaults are applied immediately.  Normally
-# you would not reset the throttle during startup.
-throttle_reset('test')
 
 i = 0
 while True:
