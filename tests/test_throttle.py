@@ -419,12 +419,23 @@ class TestThrottle:
         assert self.redis.exists(key + ':knobs') is False
 
     def test_throttle_wait(self):
-        """
-        Test wait helper method.
-
-        Would probably be nice to add a timeout to that method so we could
-        have a better test that actually waits for a little while.
-        """
+        """Test wait helper method."""
 
         throttle_func = limitlion.throttle_wait('test', rps=123)
-        throttle_func()
+        allowed = throttle_func()
+        assert allowed
+
+    def test_throttle_wait_with_max_wait(self):
+        """Test wait helper method."""
+
+        start_time = int(time.time())
+        self._freeze_redis_time(start_time, 0)
+        throttle_name = 'test'
+
+        limitlion.throttle_set(throttle_name, 1, 1, 1)
+        self._fake_work(throttle_name)
+        throttle_func = limitlion.throttle_wait(
+            throttle_name, rps=1, max_wait=0.1
+        )
+        allowed = throttle_func()
+        assert not allowed
