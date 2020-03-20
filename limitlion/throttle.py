@@ -184,7 +184,7 @@ def throttle_set(name, rps=None, burst=None, window=None, knobs_ttl=None):
     set_values_pipe.execute()
 
 
-def throttle_wait(name, *args, **kwargs):
+def throttle_wait(name, *args, max_wait=None, **kwargs):
     """Sleeps time specified by throttle if needed.
 
     This will wait potentially forever to get permission to do work
@@ -196,12 +196,10 @@ def throttle_wait(name, *args, **kwargs):
         do_work()
     """
 
-    max_wait = kwargs.pop('max_wait', None)
-
-    def throttle_func(requested_tokens=1):
+    def throttle_func():
         start_time = time.time()
         allowed, tokens, sleep = throttle(
-            name, *args, requested_tokens=requested_tokens, **kwargs
+            name, *args, **kwargs
         )
         while not allowed:
             if max_wait is not None and time.time() - start_time > max_wait:
@@ -209,7 +207,7 @@ def throttle_wait(name, *args, **kwargs):
 
             time.sleep(sleep)
             allowed, tokens, sleep = throttle(
-                name, *args, requested_tokens=requested_tokens, **kwargs
+                name, *args, **kwargs
             )
         return True
 
