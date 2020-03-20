@@ -45,11 +45,25 @@ class TestThrottle:
 
         self.redis.flushdb()
 
+    def teardown_method(self, method):
+        # Don't rely on GC to disconnect connections
+        self.redis.connection_pool.disconnect()
+
     def _get_redis_key(self, name):
         return limitlion.KEY_FORMAT.format(name)
 
-    def _fake_work(self, key, rps=5, burst=1, window=5, requested_tokens=1):
-        return limitlion.throttle(key, rps, burst, window, requested_tokens)
+    def _fake_work(
+        self,
+        key,
+        rps=5,
+        burst=1,
+        window=5,
+        requested_tokens=1,
+        update_knobs_ttl=True,
+    ):
+        return limitlion.throttle(
+            key, rps, burst, window, requested_tokens, update_knobs_ttl
+        )
 
     @staticmethod
     def _get_microseconds(time):
@@ -314,6 +328,70 @@ class TestThrottle:
             throttle_name
         )
         assert int(tokens) == 59
+        assert int(refreshed) == start_time
+        assert int(rps) == 5
+        assert int(burst) == 2
+        assert int(window) == 6
+
+    def test_set_throttle(self):
+        """Test setting throttle settings."""
+
+        throttle_name = 'test'
+        key = self._get_redis_key(throttle_name)
+
+        start_time = int(time.time())
+
+        self._freeze_redis_time(start_time, 0)
+
+        limitlion.throttle_set(throttle_name, 5, 2, 6)
+        self._fake_work(throttle_name)
+        tokens, refreshed, rps, burst, window = limitlion.throttle_get(
+            throttle_name
+        )
+
+        # TTL should be 7 days
+        assert self.redis.ttl('{}:knobs'.format(key)) > 604800 - 10
+        assert int(tokens) == 59
+        assert int(refreshed) == start_time
+        assert int(rps) == 5
+        assert int(burst) == 2
+        assert int(window) == 6
+
+    def test_set_throttle_with_ttl(self):
+        """Test setting throttle settings with a ttl."""
+
+        throttle_name = 'test'
+        key = self._get_redis_key(throttle_name)
+        start_time = int(time.time())
+        self._freeze_redis_time(start_time, 0)
+
+        # Test having knobs never expire
+        limitlion.throttle_set(throttle_name, 5, 2, 6)
+        self._fake_work(throttle_name, update_knobs_ttl=False)
+        tokens, refreshed, rps, burst, window = limitlion.throttle_get(
+            throttle_name
+        )
+
+        # TTL should not be set
+        assert self.redis.ttl('{}:knobs'.format(key)) is None
+        assert int(tokens) == 59
+        assert int(refreshed) == start_time
+        assert int(rps) == 5
+        assert int(burst) == 2
+        assert int(window) == 6
+
+        # Test setting 10 second expiration
+        limitlion.throttle_set(throttle_name, 5, 2, 6, knobs_ttl=10)
+        self._fake_work(throttle_name, update_knobs_ttl=False)
+        tokens, refreshed, rps, burst, window = limitlion.throttle_get(
+            throttle_name
+        )
+
+        # TTL should not be 9 or 10
+        ttl = self.redis.ttl('{}:knobs'.format(key))
+        assert ttl >= 9
+        assert ttl <= 10
+        assert int(tokens) == 58
         assert int(refreshed) == start_time
         assert int(rps) == 5
         assert int(burst) == 2

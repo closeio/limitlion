@@ -46,6 +46,7 @@ def throttle(
     burst=THROTTLE_BURST_DEFAULT,
     window=THROTTLE_WINDOW_DEFAULT,
     requested_tokens=THROTTLE_REQUESTED_TOKENS_DEFAULT,
+    update_knobs_ttl=True,
 ):
     """
     Throttle that allows orchestration of distributed workers.
@@ -78,7 +79,14 @@ def throttle(
     _verify_configured()
     allowed, tokens, sleep = throttle_script(
         keys=[],
-        args=[KEY_FORMAT.format(name), rps, burst, window, requested_tokens],
+        args=[
+            KEY_FORMAT.format(name),
+            rps,
+            burst,
+            window,
+            requested_tokens,
+            int(update_knobs_ttl),
+        ],
     )
     # Converting the string sleep to a float causes floating point rounding
     # issues that limits having true microsecond resolution for the sleep
@@ -154,7 +162,7 @@ def throttle_reset(name):
     redis.delete(key)
 
 
-def throttle_set(name, rps=None, burst=None, window=None):
+def throttle_set(name, rps=None, burst=None, window=None, knobs_ttl=None):
     """Adjust throttle values in redis."""
 
     _verify_configured()
@@ -167,6 +175,11 @@ def throttle_set(name, rps=None, burst=None, window=None):
     for param, param_name in params:
         if param is not None:
             set_values_pipe.hset(key, param_name, param)
+
+    # throttle() needs to be called with update_knobs_ttl=False so
+    # the default 7 day ttl isn't set in the Lua script
+    if knobs_ttl:
+        set_values_pipe.expire(key, knobs_ttl)
 
     set_values_pipe.execute()
 
