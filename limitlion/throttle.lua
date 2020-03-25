@@ -100,7 +100,7 @@ local default_rps = ARGV[2]
 local default_burst = ARGV[3]
 local default_window = ARGV[4]
 local requested_tokens = tonumber(ARGV[5])
-local update_knobs_ttl = tonumber(ARGV[6])
+local knobs_ttl = tonumber(ARGV[6])
 local rps
 local burst
 local window
@@ -121,8 +121,8 @@ else
   burst = tonumber(knobs[2])
   window = tonumber(knobs[3])
   -- Expire knobs hash 7 days after last time used
-  if update_knobs_ttl == 1 then
-    redis.call("EXPIRE", knobs_key, 604800)
+  if knobs_ttl > 0 then
+    redis.call("EXPIRE", knobs_key, knobs_ttl)
   end
 end
 

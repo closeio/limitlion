@@ -7,6 +7,7 @@ import pytest
 import redis
 
 import limitlion
+from limitlion.throttle import DEFAULT_KNOBS_TTL
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
@@ -59,10 +60,10 @@ class TestThrottle:
         burst=1,
         window=5,
         requested_tokens=1,
-        update_knobs_ttl=True,
+        knobs_ttl=DEFAULT_KNOBS_TTL,
     ):
         return limitlion.throttle(
-            key, rps, burst, window, requested_tokens, update_knobs_ttl
+            key, rps, burst, window, requested_tokens, knobs_ttl
         )
 
     @staticmethod
@@ -349,8 +350,8 @@ class TestThrottle:
             throttle_name
         )
 
-        # TTL should be 7 days
-        assert self.redis.ttl('{}:knobs'.format(key)) > 604800 - 10
+        # TTL should be ~7 days
+        assert self.redis.ttl('{}:knobs'.format(key)) > DEFAULT_KNOBS_TTL - 2
         assert int(tokens) == 59
         assert int(refreshed) == start_time
         assert int(rps) == 5
@@ -367,7 +368,7 @@ class TestThrottle:
 
         # Test having knobs never expire
         limitlion.throttle_set(throttle_name, 5, 2, 6)
-        self._fake_work(throttle_name, update_knobs_ttl=False)
+        self._fake_work(throttle_name, knobs_ttl=0)
         tokens, refreshed, rps, burst, window = limitlion.throttle_get(
             throttle_name
         )
@@ -382,15 +383,14 @@ class TestThrottle:
 
         # Test setting 10 second expiration
         limitlion.throttle_set(throttle_name, 5, 2, 6, knobs_ttl=10)
-        self._fake_work(throttle_name, update_knobs_ttl=False)
+        self._fake_work(throttle_name, knobs_ttl=0)
         tokens, refreshed, rps, burst, window = limitlion.throttle_get(
             throttle_name
         )
 
         # TTL should not be 9 or 10
         ttl = self.redis.ttl('{}:knobs'.format(key))
-        assert ttl >= 9
-        assert ttl <= 10
+        assert (ttl >= 9) and (ttl <= 10)
         assert int(tokens) == 58
         assert int(refreshed) == start_time
         assert int(rps) == 5

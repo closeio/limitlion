@@ -11,6 +11,10 @@ THROTTLE_BURST_DEFAULT = 1
 THROTTLE_WINDOW_DEFAULT = 5
 THROTTLE_REQUESTED_TOKENS_DEFAULT = 1
 
+# The default is to extend a throttle's knob settings TTL out
+# 7 days each time the throttle is used.
+DEFAULT_KNOBS_TTL = 60 * 60 * 24 * 7
+
 throttle_script = None
 redis = None
 
@@ -46,7 +50,7 @@ def throttle(
     burst=THROTTLE_BURST_DEFAULT,
     window=THROTTLE_WINDOW_DEFAULT,
     requested_tokens=THROTTLE_REQUESTED_TOKENS_DEFAULT,
-    update_knobs_ttl=True,
+    knobs_ttl=DEFAULT_KNOBS_TTL,
 ):
     """
     Throttle that allows orchestration of distributed workers.
@@ -57,6 +61,7 @@ def throttle(
         burst: Default burst multiplier
         window: Default limit window in seconds
         requested_tokens: Number of tokens required for this work request
+        knobs_ttl: Throttle's knob TTL value (0 disables setting TTL)
 
     Returns:
         allowed: True if work is allowed
@@ -85,7 +90,7 @@ def throttle(
             burst,
             window,
             requested_tokens,
-            int(update_knobs_ttl),
+            knobs_ttl,
         ],
     )
     # Converting the string sleep to a float causes floating point rounding
@@ -176,8 +181,8 @@ def throttle_set(name, rps=None, burst=None, window=None, knobs_ttl=None):
         if param is not None:
             set_values_pipe.hset(key, param_name, param)
 
-    # throttle() needs to be called with update_knobs_ttl=False so
-    # the default 7 day ttl isn't set in the Lua script
+    # throttle() needs to be called with knobs_ttl=0 so
+    # the ttl isn't set in the Lua script
     if knobs_ttl:
         set_values_pipe.expire(key, knobs_ttl)
 
