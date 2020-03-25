@@ -425,11 +425,9 @@ class TestThrottle:
         throttle_func = limitlion.throttle_wait(
             throttle_name, rps=123, requested_tokens=2
         )
-        allowed = throttle_func()
-        tokens, refreshed, rps, burst, window = limitlion.throttle_get(
-            throttle_name
-        )
-        assert allowed
+        allowed, tokens, sleep = throttle_func()
+
+        assert allowed is True
         assert int(tokens) == 613
 
     def test_throttle_wait_with_max_wait(self):
@@ -438,11 +436,13 @@ class TestThrottle:
         start_time = int(time.time())
         self._freeze_redis_time(start_time, 0)
         throttle_name = 'test'
+        max_wait = 0.1
 
         limitlion.throttle_set(throttle_name, 1, 1, 1)
         self._fake_work(throttle_name)
         throttle_func = limitlion.throttle_wait(
-            throttle_name, rps=1, max_wait=0.1
+            throttle_name, rps=1, max_wait=max_wait
         )
-        allowed = throttle_func()
-        assert not allowed
+        allowed, tokens, sleep = throttle_func()
+        assert time.time() - start_time >= max_wait
+        assert allowed is False
