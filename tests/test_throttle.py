@@ -422,10 +422,8 @@ class TestThrottle:
         """Test wait helper method."""
 
         throttle_name = 'test'
-        throttle_func = limitlion.throttle_wait(
-            throttle_name, rps=123, requested_tokens=2
-        )
-        allowed, tokens, sleep = throttle_func()
+        throttle_func = limitlion.throttle_wait(throttle_name, rps=123)
+        allowed, tokens, sleep = throttle_func(requested_tokens=2)
 
         assert allowed is True
         assert int(tokens) == 613

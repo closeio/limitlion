@@ -206,14 +206,18 @@ def throttle_wait(name, *args, **kwargs):
 
     max_wait = kwargs.pop('max_wait', None)
 
-    def throttle_func():
+    def throttle_func(requested_tokens=1):
         start_time = time.time()
-        allowed, tokens, sleep = throttle(name, *args, **kwargs)
+        allowed, tokens, sleep = throttle(
+            name, *args, requested_tokens=requested_tokens, **kwargs
+        )
         while not allowed:
             if max_wait is not None and time.time() - start_time > max_wait:
                 break
             time.sleep(sleep)
-            allowed, tokens, sleep = throttle(name, *args, **kwargs)
+            allowed, tokens, sleep = throttle(
+                name, *args, requested_tokens=requested_tokens, **kwargs
+            )
         return allowed, tokens, sleep
 
     return throttle_func
