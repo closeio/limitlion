@@ -168,7 +168,12 @@ def throttle_reset(name):
 
 
 def throttle_set(name, rps=None, burst=None, window=None, knobs_ttl=None):
-    """Adjust throttle values in redis."""
+    """
+    Adjust throttle values in redis.
+
+    If knobs_ttl is used here the throttle() call needs to be called
+    with knobs_ttl=0 so the ttl isn't also set in the Lua script
+    """
 
     _verify_configured()
     key = KEY_FORMAT.format(name) + ':knobs'
@@ -181,8 +186,6 @@ def throttle_set(name, rps=None, burst=None, window=None, knobs_ttl=None):
         if param is not None:
             set_values_pipe.hset(key, param_name, param)
 
-    # throttle() needs to be called with knobs_ttl=0 so
-    # the ttl isn't set in the Lua script
     if knobs_ttl:
         set_values_pipe.expire(key, knobs_ttl)
 
