@@ -4,7 +4,7 @@ import math
 import time
 
 import pytest
-import redis
+import redis as redis_lib
 
 import limitlion
 from limitlion.throttle import DEFAULT_KNOBS_TTL
@@ -18,6 +18,18 @@ for window in (1, 2, 5, 10):
     for burst in (1, 2, 3.3, 10):
         for rps in (0.0001, 0.2, 0.5, 0.6, 1, 2, 2.2, 5, 10):
             TEST_PARAMETERS.append((rps, burst, window))
+
+
+@pytest.fixture()
+def redis():
+    redis_instance = redis_lib.Redis(
+        host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB
+    )
+    limitlion.throttle_configure(redis_instance, True)
+
+    redis_instance.flushdb()
+    yield redis_instance
+    redis_instance.connection_pool.disconnect()
 
 
 class TestThrottleNotConfigured:
@@ -37,18 +49,6 @@ class TestThrottle:
     """
     Tests throttle.
     """
-
-    def setup_method(self, test_method):
-        """Test setup."""
-
-        self.redis = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
-        limitlion.throttle_configure(self.redis, True)
-
-        self.redis.flushdb()
-
-    def teardown_method(self, method):
-        # Don't rely on GC to disconnect connections
-        self.redis.connection_pool.disconnect()
 
     def _get_redis_key(self, name):
         return limitlion.KEY_FORMAT.format(name)
@@ -70,13 +70,15 @@ class TestThrottle:
     def _get_microseconds(time):
         return int((time - int(time)) * 1000000)
 
-    def _fake_bucket_tokens(self, key, tokens, refreshed):
+    def _fake_bucket_tokens(self, key, tokens, refreshed, redis):
         """Create a faked token bucket in Redis."""
 
         assert refreshed == int(refreshed)
-        self.redis.hmset(key, {'tokens': tokens, 'refreshed': refreshed})
+        redis.hmset(key, {'tokens': tokens, 'refreshed': refreshed})
 
-    def _freeze_redis_time(self, seconds=int(time.time()), microseconds=0):
+    def _freeze_redis_time(
+        self, redis, seconds=int(time.time()), microseconds=0
+    ):
         """
         Freeze time in Redis.
 
@@ -96,34 +98,34 @@ class TestThrottle:
         seconds += int(microseconds / 1000000)
         microseconds = microseconds % 1000000
 
-        self.redis.mset(frozen_second=seconds, frozen_microsecond=microseconds)
+        redis.mset(frozen_second=seconds, frozen_microsecond=microseconds)
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
-    def test_bursting(self, rps, burst, window):
+    def test_bursting(self, rps, burst, window, redis):
         """Test bursting logic."""
 
         capacity = math.ceil(rps * burst * window)
         start_time = int(time.time())
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
 
         allowed, tokens, sleep = self._fake_work('test', rps, burst, window)
         assert allowed is True
         assert tokens == capacity - 1
 
-        self._freeze_redis_time(start_time + window, 500000)
+        self._freeze_redis_time(redis, start_time + window, 500000)
         allowed, tokens, sleep = self._fake_work(
             'test', rps, burst, window, capacity
         )
         assert allowed is True
         assert tokens == 0
 
-        self._freeze_redis_time(start_time + 2 * window, 500000)
+        self._freeze_redis_time(redis, start_time + 2 * window, 500000)
         allowed, tokens, sleep = self._fake_work('test', rps, burst, window)
         assert allowed is True
         assert tokens == math.ceil(rps * window) - 1
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
-    def test_zero_rps(self, rps, burst, window):
+    def test_zero_rps(self, rps, burst, window, redis):
         """Test RPS set to 0."""
 
         allowed, tokens, sleep = self._fake_work('test', 0, burst, window)
@@ -132,7 +134,7 @@ class TestThrottle:
         assert tokens == 0
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
-    def test_request_all_tokens(self, rps, burst, window):
+    def test_request_all_tokens(self, rps, burst, window, redis):
         """Test request all tokens in one request."""
 
         allowed, tokens, sleep = self._fake_work(
@@ -143,7 +145,7 @@ class TestThrottle:
         assert tokens == 0
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
-    def test_request_too_many_tokens(self, rps, burst, window):
+    def test_request_too_many_tokens(self, rps, burst, window, redis):
         """Test requesting capacity plus 1."""
 
         allowed, tokens, sleep = self._fake_work(
@@ -154,7 +156,7 @@ class TestThrottle:
         assert tokens == math.ceil(rps * burst * window)
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
-    def test_multiple_throttles(self, rps, burst, window):
+    def test_multiple_throttles(self, rps, burst, window, redis):
         """Test multiple throttles."""
 
         throttle_name_1 = 'test1'
@@ -164,11 +166,11 @@ class TestThrottle:
 
         start_time = int(time.time())
         # Fake bucket with two tokens left
-        self._fake_bucket_tokens(throttle_redis_key_1, 1, start_time)
-        self._fake_bucket_tokens(throttle_redis_key_2, 3, start_time)
+        self._fake_bucket_tokens(throttle_redis_key_1, 1, start_time, redis)
+        self._fake_bucket_tokens(throttle_redis_key_2, 3, start_time, redis)
 
         # Set time 4 microseconds into the first second of this window
-        self._freeze_redis_time(start_time, 4)
+        self._freeze_redis_time(redis, start_time, 4)
 
         allowed, tokens, sleep = self._fake_work(
             throttle_name_1, rps, burst, window
@@ -198,7 +200,7 @@ class TestThrottle:
         assert tokens == 0
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
-    def test_rate_limits(self, rps, burst, window):
+    def test_rate_limits(self, rps, burst, window, redis):
         """Test requests over allowable limit."""
 
         # Don't include burst in this capacity because we don't start with
@@ -216,9 +218,9 @@ class TestThrottle:
 
         start_time = int(time.time())
         # Fake bucket with two tokens left
-        self._fake_bucket_tokens(throttle_redis_key, 2, start_time)
+        self._fake_bucket_tokens(throttle_redis_key, 2, start_time, redis)
         # Set time 4 microseconds into the first second of this window
-        self._freeze_redis_time(start_time, 4)
+        self._freeze_redis_time(redis, start_time, 4)
 
         # Fist call should be under limit
         allowed, tokens, sleep = self._fake_work(
@@ -250,6 +252,7 @@ class TestThrottle:
         # 4 microsecond of start time
         # Floating point comparison madness with + 4 versus + 5
         self._freeze_redis_time(
+            redis,
             int(start_time) + int(sleep),
             TestThrottle._get_microseconds(sleep) + 5,
         )
@@ -259,13 +262,13 @@ class TestThrottle:
         assert allowed is True
         assert tokens == capacity - 1
 
-    def test_changing_settings(self):
+    def test_changing_settings(self, redis):
         """Test changing throttle settings."""
 
         throttle_name = 'test'
 
         start_time = int(time.time())
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
 
         # Fist call should be under limit
         allowed, tokens, sleep = self._fake_work(throttle_name, 5, 1, 5)
@@ -280,7 +283,7 @@ class TestThrottle:
         assert allowed is True
         assert tokens == 23
 
-        self._freeze_redis_time(start_time + 6, 0)
+        self._freeze_redis_time(redis, start_time + 6, 0)
         # This would actually temporarily starve throttles because they would
         # not add tokens for an extra 5 seconds longer than planned.
         limitlion.throttle_set(throttle_name, 10, 1, 10)
@@ -290,14 +293,14 @@ class TestThrottle:
         assert tokens == 22
 
         # Move into next window
-        self._freeze_redis_time(start_time + 11, 0)
+        self._freeze_redis_time(redis, start_time + 11, 0)
 
         allowed, tokens, sleep = self._fake_work(throttle_name, 5, 1, 5)
         assert allowed is True
         assert tokens == 99
 
     @pytest.mark.parametrize('value', ['a', -100, '-100'])
-    def test_setting_invalid_throttle_values(self, value):
+    def test_setting_invalid_throttle_values(self, value, redis):
         """Tests setting throttle values that are not
         positive floats.
         """
@@ -305,7 +308,7 @@ class TestThrottle:
 
         start_time = int(time.time())
 
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
 
         with pytest.raises(ValueError) as excinfo:
             limitlion.throttle_set(throttle_name, value, 2, 6)
@@ -314,14 +317,14 @@ class TestThrottle:
             'be positive floats.'.format(value)
         ) in str(excinfo.value)
 
-    def test_get_throttle(self):
+    def test_get_throttle(self, redis):
         """Test getting throttle settings."""
 
         throttle_name = 'test'
 
         start_time = int(time.time())
 
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
 
         limitlion.throttle_set(throttle_name, 5, 2, 6)
         self._fake_work(throttle_name)
@@ -334,7 +337,7 @@ class TestThrottle:
         assert int(burst) == 2
         assert int(window) == 6
 
-    def test_set_throttle(self):
+    def test_set_throttle(self, redis):
         """Test setting throttle settings."""
 
         throttle_name = 'test'
@@ -342,7 +345,7 @@ class TestThrottle:
 
         start_time = int(time.time())
 
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
 
         limitlion.throttle_set(throttle_name, 5, 2, 6)
         self._fake_work(throttle_name)
@@ -351,20 +354,20 @@ class TestThrottle:
         )
 
         # TTL should be ~7 days
-        assert self.redis.ttl('{}:knobs'.format(key)) > DEFAULT_KNOBS_TTL - 2
+        assert redis.ttl('{}:knobs'.format(key)) > DEFAULT_KNOBS_TTL - 2
         assert int(tokens) == 59
         assert int(refreshed) == start_time
         assert int(rps) == 5
         assert int(burst) == 2
         assert int(window) == 6
 
-    def test_set_throttle_with_ttl(self):
+    def test_set_throttle_with_ttl(self, redis):
         """Test setting throttle settings with a ttl."""
 
         throttle_name = 'test'
         key = self._get_redis_key(throttle_name)
         start_time = int(time.time())
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
 
         # Test having knobs never expire
         limitlion.throttle_set(throttle_name, 5, 2, 6)
@@ -374,7 +377,7 @@ class TestThrottle:
         )
 
         # TTL should not be set
-        assert self.redis.ttl('{}:knobs'.format(key)) is None
+        assert redis.ttl('{}:knobs'.format(key)) is None
         assert int(tokens) == 59
         assert int(refreshed) == start_time
         assert int(rps) == 5
@@ -389,7 +392,7 @@ class TestThrottle:
         )
 
         # TTL should not be 9 or 10
-        ttl = self.redis.ttl('{}:knobs'.format(key))
+        ttl = redis.ttl('{}:knobs'.format(key))
         assert (ttl >= 9) and (ttl <= 10)
         assert int(tokens) == 58
         assert int(refreshed) == start_time
@@ -397,7 +400,7 @@ class TestThrottle:
         assert int(burst) == 2
         assert int(window) == 6
 
-    def test_delete_reset(self):
+    def test_delete_reset(self, redis):
         """Test throttle delete."""
 
         throttle_name = 'test'
@@ -405,9 +408,9 @@ class TestThrottle:
 
         limitlion.throttle_reset(throttle_name)
         key = self._get_redis_key(throttle_name)
-        assert self.redis.exists(key + ':knobs') is False
+        assert redis.exists(key + ':knobs') is False
 
-    def test_delete_throttle(self):
+    def test_delete_throttle(self, redis):
         """Test throttle delete."""
 
         throttle_name = 'test'
@@ -415,10 +418,10 @@ class TestThrottle:
 
         limitlion.throttle_delete(throttle_name)
         key = self._get_redis_key(throttle_name)
-        assert self.redis.exists(key) is False
-        assert self.redis.exists(key + ':knobs') is False
+        assert redis.exists(key) is False
+        assert redis.exists(key + ':knobs') is False
 
-    def test_throttle_wait(self):
+    def test_throttle_wait(self, redis):
         """Test wait helper method."""
 
         throttle_name = 'test'
@@ -428,11 +431,11 @@ class TestThrottle:
         assert allowed is True
         assert int(tokens) == 613
 
-    def test_throttle_wait_with_max_wait(self):
+    def test_throttle_wait_with_max_wait(self, redis):
         """Test wait helper method."""
 
         start_time = int(time.time())
-        self._freeze_redis_time(start_time, 0)
+        self._freeze_redis_time(redis, start_time, 0)
         throttle_name = 'test'
         max_wait = 0.1
 
