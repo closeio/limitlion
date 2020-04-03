@@ -11,6 +11,10 @@ THROTTLE_BURST_DEFAULT = 1
 THROTTLE_WINDOW_DEFAULT = 5
 THROTTLE_REQUESTED_TOKENS_DEFAULT = 1
 
+# The default is to extend a throttle's knob settings TTL out
+# 7 days each time the throttle is used.
+DEFAULT_KNOBS_TTL = 60 * 60 * 24 * 7
+
 throttle_script = None
 redis = None
 
@@ -46,6 +50,7 @@ def throttle(
     burst=THROTTLE_BURST_DEFAULT,
     window=THROTTLE_WINDOW_DEFAULT,
     requested_tokens=THROTTLE_REQUESTED_TOKENS_DEFAULT,
+    knobs_ttl=DEFAULT_KNOBS_TTL,
 ):
     """
     Throttle that allows orchestration of distributed workers.
@@ -56,6 +61,7 @@ def throttle(
         burst: Default burst multiplier
         window: Default limit window in seconds
         requested_tokens: Number of tokens required for this work request
+        knobs_ttl: Throttle's knob TTL value (0 disables setting TTL)
 
     Returns:
         allowed: True if work is allowed
@@ -78,7 +84,14 @@ def throttle(
     _verify_configured()
     allowed, tokens, sleep = throttle_script(
         keys=[],
-        args=[KEY_FORMAT.format(name), rps, burst, window, requested_tokens],
+        args=[
+            KEY_FORMAT.format(name),
+            rps,
+            burst,
+            window,
+            requested_tokens,
+            knobs_ttl,
+        ],
     )
     # Converting the string sleep to a float causes floating point rounding
     # issues that limits having true microsecond resolution for the sleep
@@ -154,8 +167,13 @@ def throttle_reset(name):
     redis.delete(key)
 
 
-def throttle_set(name, rps=None, burst=None, window=None):
-    """Adjust throttle values in redis."""
+def throttle_set(name, rps=None, burst=None, window=None, knobs_ttl=None):
+    """
+    Adjust throttle values in redis.
+
+    If knobs_ttl is used here the throttle() call needs to be called
+    with knobs_ttl=0 so the ttl isn't also set in the Lua script
+    """
 
     _verify_configured()
     key = KEY_FORMAT.format(name) + ':knobs'
@@ -167,6 +185,9 @@ def throttle_set(name, rps=None, burst=None, window=None):
     for param, param_name in params:
         if param is not None:
             set_values_pipe.hset(key, param_name, param)
+
+    if knobs_ttl:
+        set_values_pipe.expire(key, knobs_ttl)
 
     set_values_pipe.execute()
 
@@ -183,14 +204,20 @@ def throttle_wait(name, *args, **kwargs):
         do_work()
     """
 
+    max_wait = kwargs.pop('max_wait', None)
+
     def throttle_func(requested_tokens=1):
+        start_time = time.time()
         allowed, tokens, sleep = throttle(
             name, *args, requested_tokens=requested_tokens, **kwargs
         )
         while not allowed:
+            if max_wait is not None and time.time() - start_time > max_wait:
+                break
             time.sleep(sleep)
             allowed, tokens, sleep = throttle(
                 name, *args, requested_tokens=requested_tokens, **kwargs
             )
+        return allowed, tokens, sleep
 
     return throttle_func

@@ -1,7 +1,7 @@
 -- This script implements a per second token bucket rate limiting algorithm.  It is
 -- based on Stripe's published script.
 -- KEYS = {}  ARGV = { throttle knob name, default rate (rps), default burst multiplier,
---                     default rate limit window in seconds, requested tokens }
+--                     default rate limit window in seconds, requested tokens, knobs_ttl }
 -- Returns: allowed (1=allowed, 0=not allowed),
 --          tokens left,
 --          decimal seconds left in this window
@@ -100,6 +100,7 @@ local default_rps = ARGV[2]
 local default_burst = ARGV[3]
 local default_window = ARGV[4]
 local requested_tokens = tonumber(ARGV[5])
+local knobs_ttl = tonumber(ARGV[6])
 local rps
 local burst
 local window
@@ -119,8 +120,10 @@ else
   rps = tonumber(knobs[1])
   burst = tonumber(knobs[2])
   window = tonumber(knobs[3])
-  -- Expire knobs hash 7 days after last time used
-  redis.call("EXPIRE", knobs_key, 604800)
+  -- Set knobs hash expiration if knobs_ttl is specified
+  if knobs_ttl > 0 then
+    redis.call("EXPIRE", knobs_key, knobs_ttl)
+  end
 end
 
 -- Use redis server time so it is consistent across callers
