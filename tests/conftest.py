@@ -1,8 +1,7 @@
-import limitlion
-
 import pytest
 import redis as redis_client
 
+import limitlion
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379

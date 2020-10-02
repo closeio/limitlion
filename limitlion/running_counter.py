@@ -2,27 +2,26 @@ import math
 import time
 from collections import namedtuple
 
-import pkg_resources
-
-
 BucketValue = namedtuple('BucketValue', ['bucket', 'value'])
 
 
 class RunningCounter:
     """
-    A running counter keeps counts per interval for a specified period. The interval
-    is specified in seconds and period specifies how many buckets should be kept.
+    A running counter keeps counts per interval for a specified period. The
+    interval is specified in seconds and period specifies how many buckets
+    should be kept.
 
-    Buckets are addressed using the first epoch second for that interval calculated
-    as follows:
+    Buckets are addressed using the first epoch second for that interval
+    calculated as follows:
 
         floor(epoch seconds / interval).
 
-    For example, if using 1 hour intervals the bucket id for 2/19/19 01:23:09Z would be
-    1550539389 / (60 * 60) = 430705. This bucket id is used to generate a Redis key with
-    the following format: [key prefix]:[key]:[bucket id].
+    For example, if using 1 hour intervals the bucket id for 2/19/19 01:23:09Z
+    would be 1550539389 / (60 * 60) = 430705. This bucket id is used to generate
+    a Redis key with the following format: [key prefix]:[key]:[bucket id].
 
-    Summing up all bucket values for the RunningCounter's window gives the total count.
+    Summing up all bucket values for the RunningCounter's window gives the total
+    count.
 
     """
 
@@ -37,7 +36,8 @@ class RunningCounter:
             interval (int): How many seconds are collected in each bucket.
             periods (int): How many buckets to key.
             key (string): Optional; Key use in Redis to track this counter.
-            key_prefix (string): Optional; Prepended to key to generate Redis key.
+            key_prefix (string): Optional; Prepended to key to generate Redis
+                                 key.
         """
         self.redis = redis_instance
         self.key_prefix = key_prefix

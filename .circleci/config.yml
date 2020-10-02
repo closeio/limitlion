@@ -8,7 +8,7 @@ setup:
       command: |
         apt-get update
         apt-get install -y lua5.1 luarocks
-        pip install flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
+        pip install flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort==5.5.4
         pip install --no-deps -r requirements.txt
         pip install -r requirements_test.txt
         luarocks install luacheck

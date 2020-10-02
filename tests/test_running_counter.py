@@ -1,11 +1,10 @@
 """LimitLion tests."""
 import math
-
 import time
 
 import pytest
-import limitlion
-from limitlion.running_counter import RunningCounter, BucketValue
+
+from limitlion.running_counter import BucketValue, RunningCounter
 
 
 class TestRunningCounter:
@@ -61,7 +60,7 @@ class TestRunningCounter:
         interval = 5
 
         # Start counter now
-        now = start = int(time.time())
+        now = int(time.time())
 
         counter = RunningCounter(redis, interval, period)
 
