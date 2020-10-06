@@ -64,7 +64,7 @@ class TestRunningCounter:
 
         counter = RunningCounter(redis, interval, period)
 
-        # Fail incrementing since no key provided to constructor
+        # Fail incrementing since no key provided to __init__
         with pytest.raises(ValueError):
             counter.inc(1)
 
@@ -100,3 +100,32 @@ class TestRunningCounter:
         buckets = counter.counts(key=key)
         ttl = redis.ttl(counter._key(key, buckets[0].bucket))
         assert ttl > counter.window
+
+    def test_groups(self, redis):
+        counter = RunningCounter(redis, 10, 10, group='group')
+        counter.inc(1.2, 'test')
+        counter.inc(2.2, 'test2')
+
+        assert counter.group() == ['test', 'test2']
+        assert counter.group_counts() == {'test': 1.2, 'test2': 2.2}
+
+    def test_group_key_purging(self, redis):
+        now = int(time.time())
+        counter = RunningCounter(redis, 10, 10, group='group')
+        counter.inc(1.2, 'test', _now=now)
+        assert counter.group() == ['test']
+        counter.inc(2.2, 'test2', _now=now + counter.window)
+        assert counter.group() == ['test', 'test2']
+        # One second past window should result in first key being
+        # removed from the zset
+        counter.inc(2.2, 'test2', _now=now + counter.window + 1)
+        assert counter.group() == ['test2']
+
+    def test_group_bad_init(self, redis):
+        with pytest.raises(ValueError):
+            RunningCounter(redis, 1, 1, key='test', group='group')
+
+    def test_empty_counter(self, redis):
+        counter = RunningCounter(redis, 1, 1, key='test_empty')
+        count = counter.count()
+        assert count == 0

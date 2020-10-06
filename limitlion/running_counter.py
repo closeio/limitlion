@@ -26,7 +26,13 @@ class RunningCounter:
     """
 
     def __init__(
-        self, redis_instance, interval, periods, key=None, key_prefix='rc',
+        self,
+        redis_instance,
+        interval,
+        periods,
+        key=None,
+        key_prefix='rc',
+        group=None,
     ):
         """
         Inits RunningCounter class.
@@ -38,10 +44,15 @@ class RunningCounter:
             key (string): Optional; Key use in Redis to track this counter.
             key_prefix (string): Optional; Prepended to key to generate Redis
                                  key.
+            group (string): Optional; Keep track of keys if group name is
+                            specified.
         """
+        if group is not None and key is not None:
+            raise ValueError('Cannot set key and group in __init__')
         self.redis = redis_instance
         self.key_prefix = key_prefix
         self.key = key
+        self.group_name = group
         self.interval = interval
         self.periods = periods
 
@@ -141,4 +152,38 @@ class RunningCounter:
         pipeline = self.redis.pipeline()
         pipeline.incrbyfloat(bucket_key, increment)
         pipeline.expire(bucket_key, expire)
+        if self.group is not None:
+            group_name = self._key('group', self.group_name)
+            pipeline.zadd(group_name, key, _now)
+            pipeline.expire(group_name, expire)
+            # Trim zset to keys used within window so
+            # it doesn't grow uncapped.
+            pipeline.zremrangebyscore(
+                group_name, '-inf', _now - self.window - 1
+            )
         pipeline.execute()
+
+    def group(self):
+        """
+        Get keys in group.
+
+        Returns:
+            List of key names
+        """
+        group_name = self._key('group', self.group_name)
+        return [v.decode() for v in self.redis.zrange(group_name, 0, -1)]
+
+    def group_counts(self):
+        """
+        Get count for each key in group.
+
+        Returns:
+            Dictionary of {[key], [count]}
+        """
+        values = {}
+        # Could do this in a pipeline but if a group is huge
+        # it might be better to do them one at a time
+        for key in self.group():
+            values[key] = self.count(key)
+
+        return values
