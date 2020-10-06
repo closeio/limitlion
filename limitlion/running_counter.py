@@ -69,7 +69,7 @@ class RunningCounter:
     def _key(self, key, bucket):
         if self.group:
             return '{}:{}:{}:{}'.format(
-                self.key_prefix, self.group, key, bucket
+                self.key_prefix, self.group_name, key, bucket
             )
         else:
             return '{}:{}:{}'.format(self.key_prefix, key, bucket)
