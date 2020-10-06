@@ -109,10 +109,20 @@ class TestRunningCounter:
         assert counter.group() == ['test', 'test2']
         assert counter.group_counts() == {'test': 1.2, 'test2': 2.2}
 
+        # Make sure there aren't collisions between two groups
+        # using the same keys
+        counter = RunningCounter(redis, 10, 10, group='group2')
+        counter.inc(1.2, 'test')
+        counter.inc(2.2, 'test2')
+
+        assert counter.group() == ['test', 'test2']
+        assert counter.group_counts() == {'test': 1.2, 'test2': 2.2}
+
     def test_group_key_purging(self, redis):
         now = int(time.time())
         counter = RunningCounter(redis, 10, 10, group='group')
         counter.inc(1.2, 'test', _now=now)
+        print (type(counter.group()[0]))
         assert counter.group() == ['test']
         counter.inc(2.2, 'test2', _now=now + counter.window)
         assert counter.group() == ['test', 'test2']

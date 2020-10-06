@@ -67,7 +67,12 @@ class RunningCounter:
         return self.interval * self.periods
 
     def _key(self, key, bucket):
-        return '{}:{}:{}'.format(self.key_prefix, key, bucket)
+        if self.group:
+            return '{}:{}:{}:{}'.format(
+                self.key_prefix, self.group, key, bucket
+            )
+        else:
+            return '{}:{}:{}'.format(self.key_prefix, key, bucket)
 
     def _set_key(self, key):
         if key is None:
@@ -171,7 +176,10 @@ class RunningCounter:
             List of key names
         """
         group_name = self._key('group', self.group_name)
-        return [v.decode() for v in self.redis.zrange(group_name, 0, -1)]
+        return [
+            v.decode() if isinstance(v, bytes) else v
+            for v in self.redis.zrange(group_name, 0, -1)
+        ]
 
     def group_counts(self):
         """
