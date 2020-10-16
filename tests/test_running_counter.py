@@ -8,10 +8,6 @@ from limitlion.running_counter import BucketValue, RunningCounter
 
 
 class TestRunningCounter:
-    """
-    Running Counter tests.
-    """
-
     def test_main(self, redis):
         key = 'test'
         period = 10
@@ -20,40 +16,45 @@ class TestRunningCounter:
         # Start counter now
         now = start = int(time.time())
 
-        counter = RunningCounter(redis, interval, period, key,)
+        counter = RunningCounter(
+            redis,
+            interval,
+            period,
+            key,
+        )
         # Add two values to current bucket
-        counter.inc(1, _now=now)
-        counter.inc(1.2, _now=now)
+        counter.inc(1, now=now)
+        counter.inc(1.2, now=now)
 
-        buckets = counter.counts(_now=now)
+        buckets = counter.counts(now=now)
         bucket = int(math.floor(now / interval))
         assert buckets == [
             BucketValue(bucket, 2.2),
         ]
-        assert counter.count(_now=now) == 2.2
+        assert counter.count(now=now) == 2.2
 
         # Move half way into window and add value to bucket
         now = start + int(period * interval / 2)
-        counter.inc(2.3, _now=now)
-        buckets = counter.counts(_now=now)
+        counter.inc(2.3, now=now)
+        buckets = counter.counts(now=now)
         new_bucket = int(math.floor(now / interval))
         assert buckets == [
             BucketValue(new_bucket, 2.3),
             BucketValue(bucket, 2.2),
         ]
-        assert counter.count(_now=now) == 4.5
+        assert counter.count(now=now) == 4.5
 
         # Move forward enough to drop first bucket
         now = start + period * interval + 1
-        buckets = counter.counts(_now=now)
+        buckets = counter.counts(now=now)
         assert buckets == [BucketValue(new_bucket, 2.3)]
-        assert counter.count(_now=now) == 2.3
+        assert counter.count(now=now) == 2.3
 
         # Move forward enough to drop all buckets
         now = start + period * interval + int(period * interval / 2)
-        buckets = counter.counts(_now=now)
+        buckets = counter.counts(now=now)
         assert buckets == []
-        assert counter.count(_now=now) == 0
+        assert counter.count(now=now) == 0
 
     def test_multi_keys(self, redis):
         period = 10
@@ -71,14 +72,14 @@ class TestRunningCounter:
         # Increment two different keys
         counter.inc(1.2, 'test')
         counter.inc(2.2, 'test2')
-        buckets = counter.counts(key='test', _now=now)
+        buckets = counter.counts(key='test', now=now)
         bucket = int(math.floor(now / interval))
         assert buckets == [BucketValue(bucket, 1.2)]
-        assert counter.count(key='test', _now=now) == 1.2
+        assert counter.count(key='test', now=now) == 1.2
 
-        buckets = counter.counts(key='test2', _now=now)
+        buckets = counter.counts(key='test2', now=now)
         assert buckets == [BucketValue(bucket, 2.2)]
-        assert counter.count(key='test2', _now=now) == 2.2
+        assert counter.count(key='test2', now=now) == 2.2
 
     def test_window(self, redis):
         counter = RunningCounter(redis, 9, 8, 'test')
@@ -121,14 +122,14 @@ class TestRunningCounter:
     def test_group_key_purging(self, redis):
         now = int(time.time())
         counter = RunningCounter(redis, 10, 10, group='group')
-        counter.inc(1.2, 'test', _now=now)
-        print (type(counter.group()[0]))
+        counter.inc(1.2, 'test', now=now)
+
         assert counter.group() == ['test']
-        counter.inc(2.2, 'test2', _now=now + counter.window)
+        counter.inc(2.2, 'test2', now=now + counter.window)
         assert counter.group() == ['test', 'test2']
         # One second past window should result in first key being
         # removed from the zset
-        counter.inc(2.2, 'test2', _now=now + counter.window + 1)
+        counter.inc(2.2, 'test2', now=now + counter.window + 1)
         assert counter.group() == ['test2']
 
     def test_group_bad_init(self, redis):

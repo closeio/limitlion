@@ -20,6 +20,9 @@ class RunningCounter:
     would be 1550539389 / (60 * 60) = 430705. This bucket id is used to generate
     a Redis key with the following format: [key prefix]:[key]:[bucket id].
 
+    A group name can be provided to keep track of the list of counters in named
+    group.
+
     Summing up all bucket values for the RunningCounter's window gives the total
     count.
 
@@ -62,7 +65,7 @@ class RunningCounter:
         Running counter window.
 
         Returns:
-            Integer seconds for entire window of Running Counter.
+            Integer seconds for window of Running Counter.
         """
         return self.interval * self.periods
 
@@ -82,33 +85,29 @@ class RunningCounter:
                 return self.key
         return key
 
-    def counts(self, key=None, _now=None):
+    def counts(self, key=None, now=None):
         """
         Get RunningCounter bucket counts.
 
         Args:
             key: Optional; Must be provided if not provided to __init__().
-            _now: Optional; Override time for use by tests.
+            now: Optional; Override time for use by tests.
 
         Returns:
             List of BucketValues.
         """
-        if not _now:
-            _now = time.time()
+        if not now:
+            now = time.time()
         key = self._set_key(key)
 
-        current_bucket = int(math.floor(_now / self.interval))
-        buckets = [
-            bucket
-            for bucket in range(
-                current_bucket, current_bucket - self.periods, -1
-            )
-        ]
-        pipeline = self.redis.pipeline()
-        for bucket in buckets:
-            pipeline.get(self._key(key, bucket))
+        current_bucket = int(math.floor(now / self.interval))
+        buckets = range(current_bucket, current_bucket - self.periods, -1)
 
-        counts = [None if v is None else float(v) for v in pipeline.execute()]
+        results = self.redis.mget(
+            map(lambda bucket: self._key(key, bucket), buckets)
+        )
+
+        counts = [None if v is None else float(v) for v in results]
 
         bucket_values = [
             BucketValue(bv[0], bv[1])
@@ -117,40 +116,40 @@ class RunningCounter:
         ]
         return bucket_values
 
-    def count(self, key=None, _now=None):
+    def count(self, key=None, now=None):
         """
         Get total count for counter.
 
         Args:
             key: Optional; Must be provided if not provided to __init__().
-            _now: Optional; Override time for use by tests.
+            now: Optional; Override time for use by tests.
 
         Returns:
             Sum of all buckets.
         """
         key = self._set_key(key)
-        return sum([bv.value for bv in self.counts(key=key, _now=_now)])
+        return sum([bv.value for bv in self.counts(key=key, now=now)])
 
-    def inc(self, increment=1, key=None, _now=None):
+    def inc(self, increment=1, key=None, now=None):
         """
         Update rate counter.
 
         Args:
             increment: Float of value to add to bucket.
             key: Optional; Must be provided if not provided to __init__().
-            _now: Optional; Override time for use by tests.
+            now: Optional; Override time for use by tests.
 
         """
 
         # If more consistent time is needed across calling
         # processes, this method could be converted into a
         # Lua script to use Redis server time.
-        if not _now:
-            _now = time.time()
+        if not now:
+            now = time.time()
 
         key = self._set_key(key)
 
-        bucket = int(math.floor(_now / self.interval))
+        bucket = int(math.floor(now / self.interval))
         bucket_key = self._key(key, bucket)
         expire = self.periods * self.interval + 15
 
@@ -159,12 +158,12 @@ class RunningCounter:
         pipeline.expire(bucket_key, expire)
         if self.group is not None:
             group_name = self._key('group', self.group_name)
-            pipeline.zadd(group_name, key, _now)
+            pipeline.zadd(group_name, key, now)
             pipeline.expire(group_name, expire)
             # Trim zset to keys used within window so
             # it doesn't grow uncapped.
             pipeline.zremrangebyscore(
-                group_name, '-inf', _now - self.window - 1
+                group_name, '-inf', now - self.window - 1
             )
         pipeline.execute()
 
@@ -176,10 +175,15 @@ class RunningCounter:
             List of key names
         """
         group_name = self._key('group', self.group_name)
-        return [
-            v.decode() if isinstance(v, bytes) else v
-            for v in self.redis.zrange(group_name, 0, -1)
-        ]
+        pipeline = self.redis.pipeline()
+        # Trim zset keys so we don't look for values
+        # that won't exist anyway
+        pipeline.zremrangebyscore(
+            group_name, '-inf', time.time() - self.window - 1
+        )
+        pipeline.zrange(group_name, 0, -1)
+        results = pipeline.execute()
+        return [v.decode() if isinstance(v, bytes) else v for v in results[1]]
 
     def group_counts(self):
         """
@@ -189,9 +193,11 @@ class RunningCounter:
             Dictionary of {[key], [count]}
         """
         values = {}
+        # Ensure consistent time across all keys in group
+        now = time.time()
         # Could do this in a pipeline but if a group is huge
         # it might be better to do them one at a time
         for key in self.group():
-            values[key] = self.count(key)
+            values[key] = self.count(key, now=now)
 
         return values
