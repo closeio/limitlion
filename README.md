@@ -54,4 +54,4 @@ determine the current load on your database and adjust the RPS accordingly.
 Another small but useful tool to keep track of counts in Redis for specified
 time windows. These counts can then be used to make decisions on limiting or
  failing processes as well as for diagnostics. Checkout [`running_counter.py
-`](limitlion/running_county.py) for details.
+`](limitlion/running_counter.py) for details.
