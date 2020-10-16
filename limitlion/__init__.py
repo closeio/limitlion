@@ -1,7 +1,7 @@
 """LimitLion package."""
 
-from .throttle import *
 from .running_counter import RunningCounter
+from .throttle import *
 
 __all__ = [
     'RunningCounter',
