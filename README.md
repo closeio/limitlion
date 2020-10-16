@@ -49,3 +49,9 @@ Since these settings are stored in Redis a separate process can be used to adjus
 them on the fly.  This could simply be manually issuing the Redis command to
 change the RPS or a more sophisicated process that polls Prometheus metrics to
 determine the current load on your database and adjust the RPS accordingly.
+
+# Running Counter
+Another small but useful tool to keep track of counts in Redis for specified
+time windows. These counts can then be used to make decisions on limiting or
+ failing processes as well as for diagnostics. Checkout [`running_counter.py
+`](limitlion/running_county.py) for details.
