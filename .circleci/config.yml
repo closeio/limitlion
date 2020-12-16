@@ -14,6 +14,9 @@ jobs:
     parameters:
       tag:
         type: string
+      downgrade_redis:
+        type: boolean
+        default: false
     working_directory: /home/ubuntu/
     executor:
       name: python
@@ -29,8 +32,15 @@ jobs:
             pip install --no-deps -r requirements.txt
             pip install -r requirements_test.txt
             luarocks install luacheck
+      - when:
+          condition: << parameters.downgrade_redis >>
+          steps:
+            - run:
+                name: Downgrade redis package
+                steps:
+                  - run: pip install redis==2.10.6
       - run:
-          name: Liting
+          name: Linting
           command: |
             flake8
             isort -rc -c .
@@ -49,5 +59,27 @@ workflows:
       - test:
           name: "Python 3.6"
           tag: "3.6"
+      - test:
+          name: "Python 3.7"
+          tag: "3.7"
+      - test:
+          name: "Python 3.8"
+          tag: "3.8"
+      - test:
+          name: "Python 2.7 redis-py 2.10.6"
+          tag: "2.7"
+          downgrade_redis: true
+      - test:
+          name: "Python 3.6 redis-py 2.10.6"
+          tag: "3.6"
+          downgrade_redis: true
+      - test:
+          name: "Python 3.7 redis-py 2.10.6"
+          tag: "3.7"
+          downgrade_redis: true
+      - test:
+          name: "Python 3.8 redis-py 2.10.6"
+          tag: "3.8"
+          downgrade_redis: true
 
 
