@@ -25,8 +25,7 @@ jobs:
       name: py27
     steps:
       - checkout
-      - prepare
-        run:
+      - run:
           name: Prepare environment
           command: |
             apt-get update
@@ -35,20 +34,12 @@ jobs:
             pip install --no-deps -r requirements.txt
             pip install -r requirements_test.txt
             luarocks install luacheck
-      - lint
-        run:
-          name: Run flake8
+      - run:
+          name: Liting
           command: |
             flake8
             isort -rc -c .
             luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
-      - run:
-          name: Setup Code Climate
-          command: |
-            apt-get update
-            apt-get install -y curl git
-            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-            chmod +x ./cc-test-reporter
       - run:
           name: Run tests
           command: |
