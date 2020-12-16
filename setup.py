@@ -2,13 +2,9 @@
 
 from setuptools import setup
 
-install_requires = [
-    'redis==2.10.6'
-]
+install_requires = ['redis>=2']
 
-tests_require = install_requires + [
-    'pytest', 'pytest-cov'
-]
+tests_require = install_requires + ['pytest', 'pytest-cov']
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
