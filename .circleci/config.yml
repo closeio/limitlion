@@ -64,6 +64,7 @@ workflows:
       - test:
           name: "Python 3.8"
           tag: "3.8"
+
       - test:
           name: "Python 2.7 redis-py 2.10.6"
           tag: "2.7"
