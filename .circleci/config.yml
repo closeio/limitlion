@@ -1,112 +1,85 @@
-defaults: &defaults
-  working_directory: /home/ubuntu/
+version: 2.1
 
-setup:
-  - &prepare
-    run:
-      name: Prepare environment
-      command: |
-        apt-get update
-        apt-get install -y lua5.1 luarocks
-        pip install flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
-        pip install --no-deps -r requirements.txt
-        pip install -r requirements_test.txt
-        luarocks install luacheck
-  - &lint
-    run:
-      name: Run flake8
-      command: |
-        flake8
-        isort -rc -c .
-        luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
-
-version: 2
-jobs:
-  python27:
-    <<: *defaults
+executors:
+  python:
+    parameters:
+      tag:
+        type: string
     docker:
-      - image: python:2.7
+      - image: python:<< parameters.tag >>
       - image: redis:3.2
+
+jobs:
+  test:
+    parameters:
+      tag:
+        type: string
+      downgrade_redis:
+        type: boolean
+        default: false
+    working_directory: /home/ubuntu/
+    executor:
+      name: python
+      tag: << parameters.tag >>
     steps:
       - checkout
-      - *prepare
-      - *lint
       - run:
-          name: Setup Code Climate
+          name: Prepare environment
           command: |
             apt-get update
-            apt-get install -y curl git
-            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-            chmod +x ./cc-test-reporter
+            apt-get install -y lua5.1 luarocks
+            pip install flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
+            pip install --no-deps -r requirements.txt
+            pip install -r requirements_test.txt
+            luarocks install luacheck
+      - when:
+          condition: << parameters.downgrade_redis >>
+          steps:
+            - run:
+                name: Downgrade Redis package
+                command: pip install redis==2.10.6
+      - run:
+          name: Linting
+          command: |
+            flake8
+            isort -rc -c .
+            luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
       - run:
           name: Run tests
           command: |
-            ./cc-test-reporter before-build
             PYTHONPATH=. pytest --cov=limitlion --cov-report=xml
-            ./cc-test-reporter after-build --coverage-input-type coverage.py --exit-code $?
-
-  python35:
-    <<: *defaults
-    docker:
-      - image: python:3.5
-      - image: redis:3.2
-    steps:
-      - checkout
-      - *prepare
-      - *lint
-      - run:
-          name: Run tests
-          command: |
-            PYTHONPATH=. pytest
-
-  python36:
-    <<: *defaults
-    docker:
-      - image: python:3.6
-      - image: redis:3.2
-    steps:
-      - checkout
-      - *prepare
-      - *lint
-      - run:
-          name: Run tests
-          command: |
-            PYTHONPATH=. pytest
-
-  python37:
-    <<: *defaults
-    docker:
-      - image: python:3.7
-      - image: redis:3.2
-    steps:
-      - checkout
-      - *prepare
-      - *lint
-      - run:
-          name: Run tests
-          command: |
-            PYTHONPATH=. pytest
-
-  python38:
-    <<: *defaults
-    docker:
-      - image: python:3.8
-      - image: redis:3.2
-    steps:
-      - checkout
-      - *prepare
-      - *lint
-      - run:
-          name: Run tests
-          command: |
-            PYTHONPATH=. pytest
 
 workflows:
-  version: 2
   workflow:
     jobs:
-      - python27
-      - python35
-      - python36
-      - python37
-      - python38
+      - test:
+          name: "Python 2.7"
+          tag: "2.7"
+      - test:
+          name: "Python 3.6"
+          tag: "3.6"
+      - test:
+          name: "Python 3.7"
+          tag: "3.7"
+      - test:
+          name: "Python 3.8"
+          tag: "3.8"
+
+      - test:
+          name: "Python 2.7 redis-py 2.10.6"
+          tag: "2.7"
+          downgrade_redis: true
+      - test:
+          name: "Python 3.6 redis-py 2.10.6"
+          tag: "3.6"
+          downgrade_redis: true
+      - test:
+          name: "Python 3.7 redis-py 2.10.6"
+          tag: "3.7"
+          downgrade_redis: true
+      - test:
+          name: "Python 3.8 redis-py 2.10.6"
+          tag: "3.8"
+          downgrade_redis: true
+
+
