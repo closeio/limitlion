@@ -36,9 +36,8 @@ jobs:
           condition: << parameters.downgrade_redis >>
           steps:
             - run:
-                name: Downgrade redis package
-                steps:
-                  - run: pip install redis==2.10.6
+                name: Downgrade Redis package
+                command: pip install redis==2.10.6
       - run:
           name: Linting
           command: |
