@@ -53,33 +53,9 @@ workflows:
   workflow:
     jobs:
       - test:
-          name: "Python 2.7"
-          python_version: "2.7"
-      - test:
-          name: "Python 3.6"
-          python_version: "3.6"
-      - test:
-          name: "Python 3.7"
-          python_version: "3.7"
-      - test:
-          name: "Python 3.8"
-          python_version: "3.8"
-
-      - test:
-          name: "Python 2.7 redis-py 2.10.6"
-          python_version: "2.7"
-          downgrade_redis: true
-      - test:
-          name: "Python 3.6 redis-py 2.10.6"
-          python_version: "3.6"
-          downgrade_redis: true
-      - test:
-          name: "Python 3.7 redis-py 2.10.6"
-          python_version: "3.7"
-          downgrade_redis: true
-      - test:
-          name: "Python 3.8 redis-py 2.10.6"
-          python_version: "3.8"
-          downgrade_redis: true
+          matrix:
+            parameters:
+              python_version: ["2.7", "3.6", "3.7", "3.8"]
+              downgrade_redis: [true, false]
 
 
