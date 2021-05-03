@@ -1,6 +1,8 @@
 """LimitLion tests."""
 import math
 import time
+import datetime
+from freezefrog import FreezeTime
 
 import pytest
 
@@ -14,47 +16,52 @@ class TestRunningCounter:
         interval = 5
 
         # Start counter now
-        now = start = int(time.time())
+        now = start = datetime.datetime.utcnow()
+        with FreezeTime(now):
+            counter = RunningCounter(
+                redis,
+                interval,
+                period,
+                key,
+            )
+            # Add two values to current bucket
+            counter.inc(1)
+            counter.inc(1.2)
 
-        counter = RunningCounter(
-            redis,
-            interval,
-            period,
-            key,
-        )
-        # Add two values to current bucket
-        counter.inc(1, now=now)
-        counter.inc(1.2, now=now)
-
-        buckets = counter.counts(now=now)
-        bucket = int(math.floor(now / interval))
-        assert buckets == [
-            BucketValue(bucket, 2.2),
-        ]
-        assert counter.count(now=now) == 2.2
+            buckets = counter.counts()
+            bucket = int(math.floor(time.time() / interval))
+            assert buckets == [
+                BucketValue(bucket, 2.2),
+            ]
+            assert counter.count() == 2.2
 
         # Move half way into window and add value to bucket
-        now = start + int(period * interval / 2)
-        counter.inc(2.3, now=now)
-        buckets = counter.counts(now=now)
-        new_bucket = int(math.floor(now / interval))
-        assert buckets == [
-            BucketValue(new_bucket, 2.3),
-            BucketValue(bucket, 2.2),
-        ]
-        assert counter.count(now=now) == 4.5
+        now = start + datetime.timedelta(seconds=int(period * interval / 2))
+        with FreezeTime(now):
+            counter.inc(2.3)
+            buckets = counter.counts()
+            new_bucket = int(math.floor(time.time() / interval))
+            assert buckets == [
+                BucketValue(new_bucket, 2.3),
+                BucketValue(bucket, 2.2),
+            ]
+            assert counter.count() == 4.5
 
         # Move forward enough to drop first bucket
-        now = start + period * interval + 1
-        buckets = counter.counts(now=now)
-        assert buckets == [BucketValue(new_bucket, 2.3)]
-        assert counter.count(now=now) == 2.3
+        now = start + datetime.timedelta(seconds=period * interval + 1)
+        with FreezeTime(now):
+            buckets = counter.counts()
+            assert buckets == [BucketValue(new_bucket, 2.3)]
+            assert counter.count() == 2.3
 
         # Move forward enough to drop all buckets
-        now = start + period * interval + int(period * interval / 2)
-        buckets = counter.counts(now=now)
-        assert buckets == []
-        assert counter.count(now=now) == 0
+        now = start + datetime.timedelta(
+            seconds=period * interval + int(period * interval / 2)
+        )
+        with FreezeTime(now):
+            buckets = counter.counts()
+            assert buckets == []
+            assert counter.count() == 0
 
     def test_multi_keys(self, redis):
         period = 10
@@ -120,17 +127,23 @@ class TestRunningCounter:
         assert counter.group_counts() == {'test': 1.2, 'test2': 2.2}
 
     def test_group_key_purging(self, redis):
-        now = int(time.time())
+        start = datetime.datetime.now()
         counter = RunningCounter(redis, 10, 10, group='group')
-        counter.inc(1.2, 'test', now=now)
+        with FreezeTime(start):
+            counter.inc(1.2, 'test')
 
         assert counter.group() == ['test']
-        counter.inc(2.2, 'test2', now=now + counter.window)
-        assert counter.group() == ['test', 'test2']
+        with FreezeTime(start + datetime.timedelta(seconds=counter.window)):
+            counter.inc(2.2, 'test2')
+            assert counter.group() == ['test', 'test2']
+
         # One second past window should result in first key being
         # removed from the zset
-        counter.inc(2.2, 'test2', now=now + counter.window + 1)
-        assert counter.group() == ['test2']
+        with FreezeTime(
+            start + datetime.timedelta(seconds=counter.window + 1)
+        ):
+            counter.inc(2.2, 'test2')
+            assert counter.group() == ['test2']
 
     def test_group_bad_init(self, redis):
         with pytest.raises(ValueError):

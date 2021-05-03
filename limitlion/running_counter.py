@@ -101,7 +101,7 @@ class RunningCounter:
 
         Args:
             key: Optional; Must be provided if not provided to __init__().
-            now: Optional; Override time for use by tests.
+            now: Optional; Specify time to ensure consistency across multiple calls.
 
         Returns:
             List of BucketValues.
@@ -139,7 +139,7 @@ class RunningCounter:
 
         Args:
             key: Optional; Must be provided if not provided to __init__().
-            now: Optional; Override time for use by tests.
+            now: Optional; Specify time to ensure consistency across multiple calls.
 
         Returns:
             Sum of all buckets.
@@ -147,22 +147,20 @@ class RunningCounter:
         key = self._set_key(key)
         return sum([bv.value for bv in self.counts(key=key, now=now)])
 
-    def inc(self, increment=1, key=None, now=None):
+    def inc(self, increment=1, key=None):
         """
         Update rate counter.
 
         Args:
             increment: Float of value to add to bucket.
             key: Optional; Must be provided if not provided to __init__().
-            now: Optional; Override time for use by tests.
 
         """
 
         # If more consistent time is needed across calling
         # processes, this method could be converted into a
         # Lua script to use Redis server time.
-        if not now:
-            now = time.time()
+        now = time.time()
 
         key = self._set_key(key)
 
@@ -224,9 +222,8 @@ class RunningCounter:
         Args:
             key: Optional; Must be provided if not provided to __init__().
         """
-        now = time.time()  #  TODO remove
         key = self._set_key(key)
-        buckets = self._all_buckets(now)
+        buckets = self._all_buckets(time.time())
         redis_counter_keys = [self._key(key, bucket) for bucket in buckets]
 
         pipeline = self.redis.pipeline()
