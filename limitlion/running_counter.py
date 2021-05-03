@@ -77,6 +77,15 @@ class RunningCounter:
         else:
             return '{}:{}:{}'.format(self.key_prefix, key, bucket)
 
+    def _group_key(self):
+        """
+        Contains all active keys in a group
+        """
+        assert self.group_name is not None
+        return '{}:{}:{}'.format(
+            self.key_prefix, self.group_name, 'group_keys'
+        )
+
     def _set_key(self, key):
         if key is None:
             if self.key is None:
@@ -157,13 +166,13 @@ class RunningCounter:
         pipeline.incrbyfloat(bucket_key, increment)
         pipeline.expire(bucket_key, expire)
         if self.group_name is not None:
-            group_name = self._key('group', self.group_name)
-            pipeline.zadd(group_name, key, now)
-            pipeline.expire(group_name, expire)
+            group_key = self._group_key()
+            pipeline.zadd(group_key, key, now)
+            pipeline.expire(group_key, expire)
             # Trim zset to keys used within window so
             # it doesn't grow uncapped.
             pipeline.zremrangebyscore(
-                group_name, '-inf', now - self.window - 1
+                group_key, '-inf', now - self.window - 1
             )
         pipeline.execute()
 
@@ -174,14 +183,14 @@ class RunningCounter:
         Returns:
             List of key names
         """
-        group_name = self._key('group', self.group_name)
+        group_key = self._group_key()
         pipeline = self.redis.pipeline()
         # Trim zset keys so we don't look for values
         # that won't exist anyway
         pipeline.zremrangebyscore(
-            group_name, '-inf', time.time() - self.window - 1
+            group_key, '-inf', time.time() - self.window - 1
         )
-        pipeline.zrange(group_name, 0, -1)
+        pipeline.zrange(group_key, 0, -1)
         results = pipeline.execute()
         return [v.decode() if isinstance(v, bytes) else v for v in results[1]]
 
