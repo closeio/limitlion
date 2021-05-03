@@ -87,7 +87,7 @@ class RunningCounter:
             self.key_prefix, self.group_name, 'group_keys'
         )
 
-    def _set_key(self, key):
+    def _get_key(self, key):
         if key is None:
             if self.key is None:
                 raise ValueError('Key not specified')
@@ -108,7 +108,7 @@ class RunningCounter:
         """
         if not now:
             now = time.time()
-        key = self._set_key(key)
+        key = self._get_key(key)
 
         buckets = self._all_buckets(now)
 
@@ -144,7 +144,7 @@ class RunningCounter:
         Returns:
             Sum of all buckets.
         """
-        key = self._set_key(key)
+        key = self._get_key(key)
         return sum([bv.value for bv in self.counts(key=key, now=now)])
 
     def inc(self, increment=1, key=None):
@@ -162,7 +162,7 @@ class RunningCounter:
         # Lua script to use Redis server time.
         now = time.time()
 
-        key = self._set_key(key)
+        key = self._get_key(key)
 
         bucket = int(math.floor(now / self.interval))
         bucket_key = self._key(key, bucket)
@@ -222,7 +222,7 @@ class RunningCounter:
         Args:
             key: Optional; Must be provided if not provided to __init__().
         """
-        key = self._set_key(key)
+        key = self._get_key(key)
         buckets = self._all_buckets(time.time())
         redis_counter_keys = [self._key(key, bucket) for bucket in buckets]
 
