@@ -140,3 +140,22 @@ class TestRunningCounter:
         counter = RunningCounter(redis, 1, 1, key='test_empty')
         count = counter.count()
         assert count == 0
+
+    def test_delete_counter(self, redis):
+        counter = RunningCounter(redis, 1, 1, key='key1')
+        counter.inc()
+        counter.delete()
+        assert counter.count() == 0
+        counter.inc(key="other_key")
+        counter.delete(key="other_key")
+        assert counter.count(key="other_key") == 0
+
+    def test_delete_group_counter(self, redis):
+        counter = RunningCounter(redis, 1, 1, group='group')
+        counter.inc(key="key1")
+        counter.delete(key="key1")
+        assert counter.group_counts() == {}
+        counter.inc(key="key1")
+        counter.inc(key="key2")
+        counter.delete_group()
+        assert counter.group_counts() == {}

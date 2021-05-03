@@ -1,3 +1,4 @@
+import itertools
 import math
 import time
 from collections import namedtuple
@@ -109,8 +110,7 @@ class RunningCounter:
             now = time.time()
         key = self._set_key(key)
 
-        current_bucket = int(math.floor(now / self.interval))
-        buckets = range(current_bucket, current_bucket - self.periods, -1)
+        buckets = self._all_buckets(now)
 
         results = self.redis.mget(
             map(lambda bucket: self._key(key, bucket), buckets)
@@ -124,6 +124,14 @@ class RunningCounter:
             if bv[1] is not None
         ]
         return bucket_values
+
+    def _all_buckets(self, now):
+        """
+        Get all time buckets in running counter's range.
+        """
+        current_bucket = int(math.floor(now / self.interval))
+        buckets = range(current_bucket, current_bucket - self.periods, -1)
+        return buckets
 
     def count(self, key=None, now=None):
         """
@@ -171,9 +179,7 @@ class RunningCounter:
             pipeline.expire(group_key, expire)
             # Trim zset to keys used within window so
             # it doesn't grow uncapped.
-            pipeline.zremrangebyscore(
-                group_key, '-inf', now - self.window - 1
-            )
+            pipeline.zremrangebyscore(group_key, '-inf', now - self.window - 1)
         pipeline.execute()
 
     def group(self):
@@ -210,3 +216,35 @@ class RunningCounter:
             values[key] = self.count(key, now=now)
 
         return values
+
+    def delete(self, key=None):
+        """
+        Remove a counter.
+
+        Args:
+            key: Optional; Must be provided if not provided to __init__().
+        """
+        now = time.time()  #  TODO remove
+        key = self._set_key(key)
+        buckets = self._all_buckets(now)
+        redis_counter_keys = [self._key(key, bucket) for bucket in buckets]
+
+        pipeline = self.redis.pipeline()
+        pipeline.delete(*redis_counter_keys)
+        if self.group_name:
+            pipeline.zrem(self._group_key(), key)
+        pipeline.execute()
+
+    def delete_group(self):
+        """
+        Remove all counters in a group. A group_name must be provided to
+        __init__()
+        """
+        now = time.time()
+        all_keys = self.group()
+        buckets = self._all_buckets(now)
+        redis_counter_keys = [
+            self._key(key, bucket)
+            for key, bucket in itertools.product(all_keys, buckets)
+        ]
+        self.redis.delete(self._group_key(), *redis_counter_keys)
