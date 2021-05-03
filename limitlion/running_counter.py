@@ -70,7 +70,7 @@ class RunningCounter:
         return self.interval * self.periods
 
     def _key(self, key, bucket):
-        if self.group:
+        if self.group_name:
             return '{}:{}:{}:{}'.format(
                 self.key_prefix, self.group_name, key, bucket
             )
@@ -156,7 +156,7 @@ class RunningCounter:
         pipeline = self.redis.pipeline()
         pipeline.incrbyfloat(bucket_key, increment)
         pipeline.expire(bucket_key, expire)
-        if self.group is not None:
+        if self.group_name is not None:
             group_name = self._key('group', self.group_name)
             pipeline.zadd(group_name, key, now)
             pipeline.expire(group_name, expire)
