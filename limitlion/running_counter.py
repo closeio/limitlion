@@ -101,7 +101,8 @@ class RunningCounter:
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
-            now: Optional; Specify time to ensure consistency across multiple calls.
+            now: Optional; Specify time to ensure consistency across multiple
+            calls.
 
         Returns:
             List of BucketValues.
@@ -139,7 +140,8 @@ class RunningCounter:
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
-            now: Optional; Specify time to ensure consistency across multiple calls.
+            now: Optional; Specify time to ensure consistency across multiple
+            calls.
 
         Returns:
             Sum of all buckets.

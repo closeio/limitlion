@@ -1,10 +1,10 @@
 """LimitLion tests."""
+import datetime
 import math
 import time
-import datetime
-from freezefrog import FreezeTime
 
 import pytest
+from freezefrog import FreezeTime
 
 from limitlion.running_counter import BucketValue, RunningCounter
 
