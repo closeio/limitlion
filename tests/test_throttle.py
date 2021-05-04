@@ -22,9 +22,12 @@ for window in (1, 2, 5, 10):
 
 @pytest.fixture()
 def redis():
-    redis_instance = redis_lib.Redis(
-        host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB
-    )
+    if redis_lib.VERSION[0] >= 3:
+        RedisCls = redis_lib.Redis
+    else:
+        RedisCls = redis_lib.StrictRedis
+
+    redis_instance = RedisCls(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
     limitlion.throttle_configure(redis_instance, True)
 
     redis_instance.flushdb()
@@ -98,7 +101,9 @@ class TestThrottle:
         seconds += int(microseconds / 1000000)
         microseconds = microseconds % 1000000
 
-        redis.mset(frozen_second=seconds, frozen_microsecond=microseconds)
+        redis.mset(
+            {'frozen_second': seconds, 'frozen_microsecond': microseconds}
+        )
 
     @pytest.mark.parametrize('rps, burst, window', TEST_PARAMETERS)
     def test_bursting(self, rps, burst, window, redis):
@@ -377,7 +382,7 @@ class TestThrottle:
         )
 
         # TTL should not be set
-        assert redis.ttl('{}:knobs'.format(key)) is None
+        assert redis.ttl('{}:knobs'.format(key)) == -1
         assert int(tokens) == 59
         assert int(refreshed) == start_time
         assert int(rps) == 5
@@ -408,7 +413,7 @@ class TestThrottle:
 
         limitlion.throttle_reset(throttle_name)
         key = self._get_redis_key(throttle_name)
-        assert redis.exists(key + ':knobs') is False
+        assert redis.exists(key + ':knobs') == 0
 
     def test_delete_throttle(self, redis):
         """Test throttle delete."""
@@ -418,8 +423,8 @@ class TestThrottle:
 
         limitlion.throttle_delete(throttle_name)
         key = self._get_redis_key(throttle_name)
-        assert redis.exists(key) is False
-        assert redis.exists(key + ':knobs') is False
+        assert redis.exists(key) == 0
+        assert redis.exists(key + ':knobs') == 0
 
     def test_throttle_wait(self, redis):
         """Test wait helper method."""
