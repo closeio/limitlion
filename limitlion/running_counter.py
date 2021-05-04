@@ -2,6 +2,13 @@ import itertools
 import math
 import time
 from collections import namedtuple
+from distutils.version import LooseVersion
+
+import pkg_resources
+
+REDIS_PY_VERSION = pkg_resources.get_distribution("redis").version
+IS_REDIS_PY_2 = LooseVersion(REDIS_PY_VERSION) < LooseVersion("3")
+
 
 BucketValue = namedtuple('BucketValue', ['bucket', 'value'])
 
@@ -175,7 +182,10 @@ class RunningCounter:
         pipeline.expire(bucket_key, expire)
         if self.group_name is not None:
             group_key = self._group_key()
-            pipeline.zadd(group_key, name, now)
+            if IS_REDIS_PY_2:
+                pipeline.zadd(group_key, name, now)
+            else:
+                pipeline.zadd(group_key, {name: now})
             pipeline.expire(group_key, expire)
             # Trim zset to keys used within window so
             # it doesn't grow uncapped.
