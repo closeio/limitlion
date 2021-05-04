@@ -1,7 +1,5 @@
 
 [![CircleCI](https://circleci.com/gh/closeio/limitlion.svg?style=svg)](https://circleci.com/gh/closeio/limitlion)
-[![Maintainability](https://api.codeclimate.com/v1/badges/defea1a895913b923112/maintainability)](https://codeclimate.com/github/closeio/limitlion/maintainability)
-[![Test Coverage](https://api.codeclimate.com/v1/badges/defea1a895913b923112/test_coverage)](https://codeclimate.com/github/closeio/limitlion/test_coverage)
 # LimitLion
 
 A token bucket rate limiting throttle using Redis as the backend. Inspired by
