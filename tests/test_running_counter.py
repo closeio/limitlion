@@ -11,7 +11,7 @@ from limitlion.running_counter import BucketValue, RunningCounter
 
 class TestRunningCounter:
     def test_main(self, redis):
-        key = 'test'
+        name = 'test'
         period = 10
         interval = 5
 
@@ -22,7 +22,7 @@ class TestRunningCounter:
                 redis,
                 interval,
                 period,
-                key,
+                name,
             )
             # Add two values to current bucket
             counter.inc(1)
@@ -63,7 +63,7 @@ class TestRunningCounter:
             assert buckets == []
             assert counter.count() == 0
 
-    def test_multi_keys(self, redis):
+    def test_multi_counters(self, redis):
         period = 10
         interval = 5
 
@@ -72,41 +72,41 @@ class TestRunningCounter:
 
         counter = RunningCounter(redis, interval, period)
 
-        # Fail incrementing since no key provided to __init__
+        # Fail incrementing since no name provided to __init__
         with pytest.raises(ValueError):
             counter.inc(1)
 
-        # Increment two different keys
+        # Increment two different names
         counter.inc(1.2, 'test')
         counter.inc(2.2, 'test2')
-        buckets = counter.counts(key='test', now=now)
+        buckets = counter.counts(name='test', now=now)
         bucket = int(math.floor(now / interval))
         assert buckets == [BucketValue(bucket, 1.2)]
-        assert counter.count(key='test', now=now) == 1.2
+        assert counter.count(name='test', now=now) == 1.2
 
-        buckets = counter.counts(key='test2', now=now)
+        buckets = counter.counts(name='test2', now=now)
         assert buckets == [BucketValue(bucket, 2.2)]
-        assert counter.count(key='test2', now=now) == 2.2
+        assert counter.count(name='test2', now=now) == 2.2
 
     def test_window(self, redis):
         counter = RunningCounter(redis, 9, 8, 'test')
         assert counter.window == 72  # Seconds
 
     def test_redis_expirations(self, redis):
-        # Test TTL when specifying key in constructor
-        key = 'test'
-        counter = RunningCounter(redis, 9, 8, key)
+        # Test TTL when specifying name in constructor
+        name = 'test'
+        counter = RunningCounter(redis, 9, 8, name)
         counter.inc(2.3)
         buckets = counter.counts()
-        ttl = redis.ttl(counter._key(key, buckets[0].bucket))
+        ttl = redis.ttl(counter._key(name, buckets[0].bucket))
         assert ttl > counter.window
 
-        # Test TTL when specifying key in inc
-        key = 'test2'
+        # Test TTL when specifying name in inc
+        name = 'test2'
         counter = RunningCounter(redis, 9, 8)
-        counter.inc(2.3, key=key)
-        buckets = counter.counts(key=key)
-        ttl = redis.ttl(counter._key(key, buckets[0].bucket))
+        counter.inc(2.3, name=name)
+        buckets = counter.counts(name=name)
+        ttl = redis.ttl(counter._key(name, buckets[0].bucket))
         assert ttl > counter.window
 
     def test_groups(self, redis):
@@ -118,7 +118,7 @@ class TestRunningCounter:
         assert counter.group_counts() == {'test': 1.2, 'test2': 2.2}
 
         # Make sure there aren't collisions between two groups
-        # using the same keys
+        # using the same names
         counter = RunningCounter(redis, 10, 10, group='group2')
         counter.inc(1.2, 'test')
         counter.inc(2.2, 'test2')
@@ -126,7 +126,7 @@ class TestRunningCounter:
         assert counter.group() == ['test', 'test2']
         assert counter.group_counts() == {'test': 1.2, 'test2': 2.2}
 
-    def test_group_key_purging(self, redis):
+    def test_group_counter_purging(self, redis):
         start = datetime.datetime.now()
         counter = RunningCounter(redis, 10, 10, group='group')
         with FreezeTime(start):
@@ -137,7 +137,7 @@ class TestRunningCounter:
             counter.inc(2.2, 'test2')
             assert counter.group() == ['test', 'test2']
 
-        # One second past window should result in first key being
+        # One second past window should result in first counter being
         # removed from the zset
         with FreezeTime(
             start + datetime.timedelta(seconds=counter.window + 1)
@@ -147,28 +147,28 @@ class TestRunningCounter:
 
     def test_group_bad_init(self, redis):
         with pytest.raises(ValueError):
-            RunningCounter(redis, 1, 1, key='test', group='group')
+            RunningCounter(redis, 1, 1, name='test', group='group')
 
     def test_empty_counter(self, redis):
-        counter = RunningCounter(redis, 1, 1, key='test_empty')
+        counter = RunningCounter(redis, 1, 1, name='test_empty')
         count = counter.count()
         assert count == 0
 
     def test_delete_counter(self, redis):
-        counter = RunningCounter(redis, 1, 1, key='key1')
+        counter = RunningCounter(redis, 1, 1, name='name1')
         counter.inc()
         counter.delete()
         assert counter.count() == 0
-        counter.inc(key="other_key")
-        counter.delete(key="other_key")
-        assert counter.count(key="other_key") == 0
+        counter.inc(name="other_name")
+        counter.delete(name="other_name")
+        assert counter.count(name="other_name") == 0
 
     def test_delete_group_counter(self, redis):
         counter = RunningCounter(redis, 1, 1, group='group')
-        counter.inc(key="key1")
-        counter.delete(key="key1")
+        counter.inc(name="name1")
+        counter.delete(name="name1")
         assert counter.group_counts() == {}
-        counter.inc(key="key1")
-        counter.inc(key="key2")
+        counter.inc(name="name1")
+        counter.inc(name="name2")
         counter.delete_group()
         assert counter.group_counts() == {}

@@ -34,8 +34,8 @@ class RunningCounter:
         redis_instance,
         interval,
         periods,
-        key=None,
-        key_prefix='rc',
+        name=None,
+        name_prefix='rc',
         group=None,
     ):
         """
@@ -45,17 +45,17 @@ class RunningCounter:
             redis_instance: Redis client instance.
             interval (int): How many seconds are collected in each bucket.
             periods (int): How many buckets to key.
-            key (string): Optional; Key use in Redis to track this counter.
-            key_prefix (string): Optional; Prepended to key to generate Redis
+            name (string): Optional; Name of this counter counter.
+            name_prefix (string): Optional; Prepended to name to generate Redis
                                  key.
             group (string): Optional; Keep track of keys if group name is
                             specified.
         """
-        if group is not None and key is not None:
+        if group is not None and name is not None:
             raise ValueError('Cannot set key and group in __init__')
         self.redis = redis_instance
-        self.key_prefix = key_prefix
-        self.key = key
+        self.name_prefix = name_prefix
+        self.name = name
         self.group_name = group
         self.interval = interval
         self.periods = periods
@@ -70,37 +70,37 @@ class RunningCounter:
         """
         return self.interval * self.periods
 
-    def _key(self, key, bucket):
+    def _key(self, name, bucket):
         if self.group_name:
             return '{}:{}:{}:{}'.format(
-                self.key_prefix, self.group_name, key, bucket
+                self.name_prefix, self.group_name, name, bucket
             )
         else:
-            return '{}:{}:{}'.format(self.key_prefix, key, bucket)
+            return '{}:{}:{}'.format(self.name_prefix, name, bucket)
 
     def _group_key(self):
         """
-        Contains all active keys in a group
+        Redis key with names of all counters from a group.
         """
         assert self.group_name is not None
         return '{}:{}:{}'.format(
-            self.key_prefix, self.group_name, 'group_keys'
+            self.name_prefix, self.group_name, 'group_keys'
         )
 
-    def _get_key(self, key):
-        if key is None:
-            if self.key is None:
-                raise ValueError('Key not specified')
+    def _get_name(self, name):
+        if name is None:
+            if self.name is None:
+                raise ValueError('Name not specified')
             else:
-                return self.key
-        return key
+                return self.name
+        return name
 
-    def counts(self, key=None, now=None):
+    def counts(self, name=None, now=None):
         """
         Get RunningCounter bucket counts.
 
         Args:
-            key: Optional; Must be provided if not provided to __init__().
+            name: Optional; Must be provided if not provided to __init__().
             now: Optional; Specify time to ensure consistency across multiple calls.
 
         Returns:
@@ -108,12 +108,12 @@ class RunningCounter:
         """
         if not now:
             now = time.time()
-        key = self._get_key(key)
+        name = self._get_name(name)
 
         buckets = self._all_buckets(now)
 
         results = self.redis.mget(
-            map(lambda bucket: self._key(key, bucket), buckets)
+            map(lambda bucket: self._key(name, bucket), buckets)
         )
 
         counts = [None if v is None else float(v) for v in results]
@@ -133,27 +133,27 @@ class RunningCounter:
         buckets = range(current_bucket, current_bucket - self.periods, -1)
         return buckets
 
-    def count(self, key=None, now=None):
+    def count(self, name=None, now=None):
         """
         Get total count for counter.
 
         Args:
-            key: Optional; Must be provided if not provided to __init__().
+            name: Optional; Must be provided if not provided to __init__().
             now: Optional; Specify time to ensure consistency across multiple calls.
 
         Returns:
             Sum of all buckets.
         """
-        key = self._get_key(key)
-        return sum([bv.value for bv in self.counts(key=key, now=now)])
+        name = self._get_name(name)
+        return sum([bv.value for bv in self.counts(name=name, now=now)])
 
-    def inc(self, increment=1, key=None):
+    def inc(self, increment=1, name=None):
         """
         Update rate counter.
 
         Args:
             increment: Float of value to add to bucket.
-            key: Optional; Must be provided if not provided to __init__().
+            name: Optional; Must be provided if not provided to __init__().
 
         """
 
@@ -162,10 +162,10 @@ class RunningCounter:
         # Lua script to use Redis server time.
         now = time.time()
 
-        key = self._get_key(key)
+        name = self._get_name(name)
 
         bucket = int(math.floor(now / self.interval))
-        bucket_key = self._key(key, bucket)
+        bucket_key = self._key(name, bucket)
         expire = self.periods * self.interval + 15
 
         pipeline = self.redis.pipeline()
@@ -173,7 +173,7 @@ class RunningCounter:
         pipeline.expire(bucket_key, expire)
         if self.group_name is not None:
             group_key = self._group_key()
-            pipeline.zadd(group_key, key, now)
+            pipeline.zadd(group_key, name, now)
             pipeline.expire(group_key, expire)
             # Trim zset to keys used within window so
             # it doesn't grow uncapped.
@@ -182,10 +182,10 @@ class RunningCounter:
 
     def group(self):
         """
-        Get keys in group.
+        Get all counter names in a group.
 
         Returns:
-            List of key names
+            List of counter names
         """
         group_key = self._group_key()
         pipeline = self.redis.pipeline()
@@ -210,26 +210,26 @@ class RunningCounter:
         now = time.time()
         # Could do this in a pipeline but if a group is huge
         # it might be better to do them one at a time
-        for key in self.group():
-            values[key] = self.count(key, now=now)
+        for name in self.group():
+            values[name] = self.count(name, now=now)
 
         return values
 
-    def delete(self, key=None):
+    def delete(self, name=None):
         """
         Remove a counter.
 
         Args:
-            key: Optional; Must be provided if not provided to __init__().
+            name: Optional; Must be provided if not provided to __init__().
         """
-        key = self._get_key(key)
+        name = self._get_name(name)
         buckets = self._all_buckets(time.time())
-        redis_counter_keys = [self._key(key, bucket) for bucket in buckets]
+        counter_keys = [self._key(name, bucket) for bucket in buckets]
 
         pipeline = self.redis.pipeline()
-        pipeline.delete(*redis_counter_keys)
+        pipeline.delete(*counter_keys)
         if self.group_name:
-            pipeline.zrem(self._group_key(), key)
+            pipeline.zrem(self._group_key(), name)
         pipeline.execute()
 
     def delete_group(self):
@@ -238,10 +238,10 @@ class RunningCounter:
         __init__()
         """
         now = time.time()
-        all_keys = self.group()
+        all_counters = self.group()
         buckets = self._all_buckets(now)
-        redis_counter_keys = [
+        counter_keys = [
             self._key(key, bucket)
-            for key, bucket in itertools.product(all_keys, buckets)
+            for key, bucket in itertools.product(all_counters, buckets)
         ]
-        self.redis.delete(self._group_key(), *redis_counter_keys)
+        self.redis.delete(self._group_key(), *counter_keys)
