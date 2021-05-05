@@ -1,5 +1,4 @@
 import itertools
-import math
 import time
 from collections import namedtuple
 from distutils.version import LooseVersion
@@ -25,8 +24,9 @@ class RunningCounter:
         floor(epoch seconds / interval).
 
     For example, if using 1 hour intervals the bucket id for 2/19/19 01:23:09Z
-    would be 1550539389 / (60 * 60) = 430705. This bucket id is used to generate
-    a Redis key with the following format: [key prefix]:[key]:[bucket id].
+    would be floor(1550539389 / (60 * 60)) = 430705. This bucket id is used to
+    generate a Redis key with the following format:
+    [key prefix]:[key]:[bucket id].
 
     A group name can be provided to keep track of the list of counters in named
     group.
@@ -38,34 +38,34 @@ class RunningCounter:
 
     def __init__(
         self,
-        redis_instance,
+        redis,
         interval,
         periods,
         name=None,
         name_prefix='rc',
-        group=None,
+        group_name=None,
     ):
         """
         Inits RunningCounter class.
 
         Args:
-            redis_instance: Redis client instance.
+            redis: Redis client instance.
             interval (int): How many seconds are collected in each bucket.
-            periods (int): How many buckets to key.
-            name (string): Optional; Name of this counter counter.
+            periods (int): How many buckets to keep.
+            name (string): Optional; Name of this running counter.
             name_prefix (string): Optional; Prepended to name to generate Redis
-                                 key.
-            group (string): Optional; Keep track of keys if group name is
-                            specified.
+                key. Name xor group_name must be set.
+            group_name (string): Optional; Keep track of keys if group name is
+                specified. Name xor group_name must be set.
         """
-        if sum([group is not None, name is not None]) != 1:
+        if (name is None) == (group_name is None):
             raise ValueError('Either name xor group must be set in __init__')
-        self.redis = redis_instance
-        self.name_prefix = name_prefix
-        self.name = name
-        self.group_name = group
+        self.redis = redis
         self.interval = interval
         self.periods = periods
+        self.name = name
+        self.name_prefix = name_prefix
+        self.group_name = group_name
 
     @property
     def window(self):
@@ -97,7 +97,9 @@ class RunningCounter:
     def _get_name(self, name):
         if self.name:
             if name and self.name != name:
-                raise ValueError('Cannot specify name when already set in __init__')
+                raise ValueError(
+                    'Cannot specify different name when already set in __init__'
+                )
             return self.name
         else:
             if name is None:
@@ -108,7 +110,7 @@ class RunningCounter:
         """
         Get all buckets in running counter's window.
         """
-        current_bucket = int(math.floor(now / self.interval))
+        current_bucket = int(now) // self.interval
         buckets = range(current_bucket, current_bucket - self.periods, -1)
         return buckets
 
@@ -119,7 +121,7 @@ class RunningCounter:
         Args:
             name: Optional; Must be provided if not provided to __init__().
             now: Optional; Specify time to ensure consistency across multiple
-            calls.
+                calls.
 
         Returns:
             List of BucketValues.
@@ -150,7 +152,7 @@ class RunningCounter:
         Args:
             name: Optional; Must be provided if not provided to __init__().
             now: Optional; Specify time to ensure consistency across multiple
-            calls.
+                calls.
 
         Returns:
             Sum of all buckets.
@@ -175,7 +177,7 @@ class RunningCounter:
 
         name = self._get_name(name)
 
-        bucket = int(math.floor(now / self.interval))
+        bucket = int(now) // self.interval
         bucket_key = self._key(name, bucket)
         expire = self.periods * self.interval + 15
 

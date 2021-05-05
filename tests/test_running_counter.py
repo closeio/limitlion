@@ -94,7 +94,7 @@ class TestRunningCounter:
         assert ttl > counter.window
 
     def test_groups(self, redis):
-        counter = RunningCounter(redis, 10, 10, group='group')
+        counter = RunningCounter(redis, 10, 10, group_name='group')
         counter.inc(1.2, 'test')
         counter.inc(2.2, 'test2')
 
@@ -103,7 +103,7 @@ class TestRunningCounter:
 
         # Make sure there aren't collisions between two groups
         # using the same names
-        counter = RunningCounter(redis, 10, 10, group='group2')
+        counter = RunningCounter(redis, 10, 10, group_name='group2')
         counter.inc(1.2, 'test')
         counter.inc(2.2, 'test2')
 
@@ -112,7 +112,7 @@ class TestRunningCounter:
 
     def test_group_counter_purging(self, redis):
         start = datetime.datetime.now()
-        counter = RunningCounter(redis, 10, 10, group='group')
+        counter = RunningCounter(redis, 10, 10, group_name='group')
         with FreezeTime(start):
             counter.inc(1.2, 'test')
 
@@ -131,7 +131,7 @@ class TestRunningCounter:
 
     def test_group_bad_init(self, redis):
         with pytest.raises(ValueError):
-            RunningCounter(redis, 1, 1, name='test', group='group')
+            RunningCounter(redis, 1, 1, name='test', group_name='group')
 
     def test_empty_counter(self, redis):
         counter = RunningCounter(redis, 1, 1, name='test_empty')
@@ -145,7 +145,7 @@ class TestRunningCounter:
         assert counter.count() == 0
 
     def test_delete_group_counter(self, redis):
-        counter = RunningCounter(redis, 1, 1, group='group')
+        counter = RunningCounter(redis, 1, 1, group_name='group')
         counter.inc(name="name1")
         counter.delete(name="name1")
         assert counter.group_counts() == {}
