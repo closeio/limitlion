@@ -59,7 +59,7 @@ class RunningCounter:
                             specified.
         """
         if group is not None and name is not None:
-            raise ValueError('Cannot set key and group in __init__')
+            raise ValueError('Cannot set name and group in __init__')
         self.redis = redis_instance
         self.name_prefix = name_prefix
         self.name = name
@@ -102,6 +102,14 @@ class RunningCounter:
                 return self.name
         return name
 
+    def _all_buckets(self, now):
+        """
+        Get all buckets in running counter's window.
+        """
+        current_bucket = int(math.floor(now / self.interval))
+        buckets = range(current_bucket, current_bucket - self.periods, -1)
+        return buckets
+
     def counts(self, name=None, now=None):
         """
         Get RunningCounter bucket counts.
@@ -132,14 +140,6 @@ class RunningCounter:
             if bv[1] is not None
         ]
         return bucket_values
-
-    def _all_buckets(self, now):
-        """
-        Get all time buckets in running counter's range.
-        """
-        current_bucket = int(math.floor(now / self.interval))
-        buckets = range(current_bucket, current_bucket - self.periods, -1)
-        return buckets
 
     def count(self, name=None, now=None):
         """
