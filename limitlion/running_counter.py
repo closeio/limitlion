@@ -58,8 +58,8 @@ class RunningCounter:
             group (string): Optional; Keep track of keys if group name is
                             specified.
         """
-        if group is not None and name is not None:
-            raise ValueError('Cannot set name and group in __init__')
+        if sum([group is not None, name is not None]) != 1:
+            raise ValueError('Either name xor group must be set in __init__')
         self.redis = redis_instance
         self.name_prefix = name_prefix
         self.name = name
@@ -95,12 +95,14 @@ class RunningCounter:
         )
 
     def _get_name(self, name):
-        if name is None:
-            if self.name is None:
+        if self.name:
+            if name and self.name != name:
+                raise ValueError('Cannot specify name when already set in __init__')
+            return self.name
+        else:
+            if name is None:
                 raise ValueError('Name not specified')
-            else:
-                return self.name
-        return name
+            return name
 
     def _all_buckets(self, now):
         """
@@ -110,7 +112,7 @@ class RunningCounter:
         buckets = range(current_bucket, current_bucket - self.periods, -1)
         return buckets
 
-    def counts(self, name=None, now=None):
+    def buckets(self, name=None, now=None):
         """
         Get RunningCounter bucket counts.
 
@@ -154,7 +156,7 @@ class RunningCounter:
             Sum of all buckets.
         """
         name = self._get_name(name)
-        return sum([bv.value for bv in self.counts(name=name, now=now)])
+        return sum([bv.value for bv in self.buckets(name=name, now=now)])
 
     def inc(self, increment=1, name=None):
         """

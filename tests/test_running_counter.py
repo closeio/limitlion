@@ -28,7 +28,7 @@ class TestRunningCounter:
             counter.inc(1)
             counter.inc(1.2)
 
-            buckets = counter.counts()
+            buckets = counter.buckets()
             bucket = int(math.floor(time.time() / interval))
             assert buckets == [
                 BucketValue(bucket, 2.2),
@@ -39,7 +39,7 @@ class TestRunningCounter:
         now = start + datetime.timedelta(seconds=int(period * interval / 2))
         with FreezeTime(now):
             counter.inc(2.3)
-            buckets = counter.counts()
+            buckets = counter.buckets()
             new_bucket = int(math.floor(time.time() / interval))
             assert buckets == [
                 BucketValue(new_bucket, 2.3),
@@ -50,7 +50,7 @@ class TestRunningCounter:
         # Move forward enough to drop first bucket
         now = start + datetime.timedelta(seconds=period * interval + 1)
         with FreezeTime(now):
-            buckets = counter.counts()
+            buckets = counter.buckets()
             assert buckets == [BucketValue(new_bucket, 2.3)]
             assert counter.count() == 2.3
 
@@ -59,34 +59,18 @@ class TestRunningCounter:
             seconds=period * interval + int(period * interval / 2)
         )
         with FreezeTime(now):
-            buckets = counter.counts()
+            buckets = counter.buckets()
             assert buckets == []
             assert counter.count() == 0
 
-    def test_multi_counters(self, redis):
-        period = 10
-        interval = 5
+    def test_multi_counters_not_allowed(self, redis):
+        counter = RunningCounter(redis, 10, 10, name='test1')
 
-        # Start counter now
-        now = int(time.time())
-
-        counter = RunningCounter(redis, interval, period)
-
-        # Fail incrementing since no name provided to __init__
         with pytest.raises(ValueError):
-            counter.inc(1)
+            counter.inc(1, name='test2')
 
-        # Increment two different names
-        counter.inc(1.2, 'test')
-        counter.inc(2.2, 'test2')
-        buckets = counter.counts(name='test', now=now)
-        bucket = int(math.floor(now / interval))
-        assert buckets == [BucketValue(bucket, 1.2)]
-        assert counter.count(name='test', now=now) == 1.2
-
-        buckets = counter.counts(name='test2', now=now)
-        assert buckets == [BucketValue(bucket, 2.2)]
-        assert counter.count(name='test2', now=now) == 2.2
+        with pytest.raises(ValueError):
+            counter.buckets(name='test2')
 
     def test_window(self, redis):
         counter = RunningCounter(redis, 9, 8, 'test')
@@ -97,15 +81,15 @@ class TestRunningCounter:
         name = 'test'
         counter = RunningCounter(redis, 9, 8, name)
         counter.inc(2.3)
-        buckets = counter.counts()
+        buckets = counter.buckets()
         ttl = redis.ttl(counter._key(name, buckets[0].bucket))
         assert ttl > counter.window
 
         # Test TTL when specifying name in inc
         name = 'test2'
-        counter = RunningCounter(redis, 9, 8)
-        counter.inc(2.3, name=name)
-        buckets = counter.counts(name=name)
+        counter = RunningCounter(redis, 9, 8, name)
+        counter.inc(2.3)
+        buckets = counter.buckets(name=name)
         ttl = redis.ttl(counter._key(name, buckets[0].bucket))
         assert ttl > counter.window
 
@@ -159,9 +143,6 @@ class TestRunningCounter:
         counter.inc()
         counter.delete()
         assert counter.count() == 0
-        counter.inc(name="other_name")
-        counter.delete(name="other_name")
-        assert counter.count(name="other_name") == 0
 
     def test_delete_group_counter(self, redis):
         counter = RunningCounter(redis, 1, 1, group='group')
