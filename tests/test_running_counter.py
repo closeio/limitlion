@@ -1,6 +1,5 @@
 """LimitLion tests."""
 import datetime
-import math
 import time
 
 import pytest
@@ -29,7 +28,7 @@ class TestRunningCounter:
             counter.inc(1.2)
 
             buckets = counter.buckets()
-            bucket = int(math.floor(time.time() / interval))
+            bucket = int(time.time()) // interval
             assert buckets == [
                 BucketValue(bucket, 2.2),
             ]
@@ -40,7 +39,7 @@ class TestRunningCounter:
         with FreezeTime(now):
             counter.inc(2.3)
             buckets = counter.buckets()
-            new_bucket = int(math.floor(time.time() / interval))
+            new_bucket = int(time.time()) // interval
             assert buckets == [
                 BucketValue(new_bucket, 2.3),
                 BucketValue(bucket, 2.2),
