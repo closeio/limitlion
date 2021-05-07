@@ -11,7 +11,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='limitlion',
-    version='0.9.2',
+    version='0.10.0',
     url='http://github.com/closeio/limitlion',
     description='Close LimitLion',
     long_description=long_description,
