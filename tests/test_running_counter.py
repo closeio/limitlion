@@ -152,3 +152,37 @@ class TestRunningCounter:
         counter.inc(name="name2")
         counter.delete_group()
         assert counter.group_counts() == {}
+
+    def test_group_counts_specify_periods(self, redis):
+        start = datetime.datetime.now()
+        counter = RunningCounter(redis, 10, 10, group_name='group')
+        with FreezeTime(start):
+            counter.inc(1, 'counter1')
+            counter.inc(3, 'counter2')
+
+        with FreezeTime(start + datetime.timedelta(seconds=counter.interval)):
+            counter.inc(1, 'counter1')
+            counter.inc(3, 'counter2')
+        with FreezeTime(
+            start + datetime.timedelta(seconds=counter.interval * 2)
+        ):
+            counter.inc(1, 'counter1')
+            counter.inc(3, 'counter2')
+            assert counter.group_counts(recent_periods=1) == {
+                'counter1': 1.0,
+                'counter2': 3.0,
+            }
+            assert counter.group_counts(recent_periods=2) == {
+                'counter1': 2.0,
+                'counter2': 6.0,
+            }
+            assert counter.group_counts() == {
+                'counter1': 3.0,
+                'counter2': 9.0,
+            }
+            assert counter.group_counts(recent_periods=10) == {
+                'counter1': 3.0,
+                'counter2': 9.0,
+            }
+            with pytest.raises(ValueError):
+                counter.group_counts(recent_periods=11)

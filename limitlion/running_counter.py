@@ -106,20 +106,31 @@ class RunningCounter:
                 raise ValueError('Name not specified')
             return name
 
-    def _all_buckets(self, now):
+    def _all_buckets(self, recent_periods=None, now=None):
         """
         Get all buckets in running counter's window.
         """
+        now = now or time.time()
         current_bucket = int(now) // self.interval
-        buckets = range(current_bucket, current_bucket - self.periods, -1)
+        if recent_periods is None:
+            oldest_bucket = current_bucket - self.periods
+        else:
+            if recent_periods > self.periods:
+                raise ValueError(
+                    'recent_periods must be less or equal to periods '
+                    'in __init__'
+                )
+            oldest_bucket = current_bucket - recent_periods
+        buckets = range(current_bucket, oldest_bucket, -1)
         return buckets
 
-    def buckets(self, name=None, now=None):
+    def buckets(self, name=None, recent_periods=None, now=None):
         """
         Get RunningCounter bucket counts.
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
+            recent_periods: Optional; Number of most recent periods to consider.
             now: Optional; Specify time to ensure consistency across multiple
                 calls.
 
@@ -130,7 +141,7 @@ class RunningCounter:
             now = time.time()
         name = self._get_name(name)
 
-        buckets = self._all_buckets(now)
+        buckets = self._all_buckets(recent_periods=recent_periods, now=now)
 
         results = self.redis.mget(
             map(lambda bucket: self._key(name, bucket), buckets)
@@ -145,12 +156,13 @@ class RunningCounter:
         ]
         return bucket_values
 
-    def count(self, name=None, now=None):
+    def count(self, name=None, recent_periods=None, now=None):
         """
         Get total count for counter.
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
+            recent_periods: Optional; Number of most recent periods to consider.
             now: Optional; Specify time to ensure consistency across multiple
                 calls.
 
@@ -158,7 +170,14 @@ class RunningCounter:
             Sum of all buckets.
         """
         name = self._get_name(name)
-        return sum([bv.value for bv in self.buckets(name=name, now=now)])
+        return sum(
+            [
+                bv.value
+                for bv in self.buckets(
+                    name=name, recent_periods=recent_periods, now=now
+                )
+            ]
+        )
 
     def inc(self, increment=1, name=None):
         """
@@ -214,9 +233,12 @@ class RunningCounter:
         results = pipeline.execute()
         return [v.decode() if isinstance(v, bytes) else v for v in results[1]]
 
-    def group_counts(self):
+    def group_counts(self, recent_periods=None):
         """
         Get count for each key in group.
+
+        Args:
+            recent_periods: Optional; Number of most recent periods to consider.
 
         Returns:
             Dictionary of {[key], [count]}
@@ -227,7 +249,9 @@ class RunningCounter:
         # Could do this in a pipeline but if a group is huge
         # it might be better to do them one at a time
         for name in self.group():
-            values[name] = self.count(name, now=now)
+            values[name] = self.count(
+                name, recent_periods=recent_periods, now=now
+            )
 
         return values
 
@@ -239,7 +263,7 @@ class RunningCounter:
             name: Optional; Must be provided if not provided to __init__().
         """
         name = self._get_name(name)
-        buckets = self._all_buckets(time.time())
+        buckets = self._all_buckets(now=time.time())
         counter_keys = [self._key(name, bucket) for bucket in buckets]
 
         pipeline = self.redis.pipeline()
@@ -255,7 +279,7 @@ class RunningCounter:
         """
         now = time.time()
         all_counters = self.group()
-        buckets = self._all_buckets(now)
+        buckets = self._all_buckets(now=now)
         counter_keys = [
             self._key(key, bucket)
             for key, bucket in itertools.product(all_counters, buckets)
