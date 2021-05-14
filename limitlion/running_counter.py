@@ -9,14 +9,13 @@ REDIS_PY_VERSION = pkg_resources.get_distribution("redis").version
 IS_REDIS_PY_2 = LooseVersion(REDIS_PY_VERSION) < LooseVersion("3")
 
 
-BucketValue = namedtuple('BucketValue', ['bucket', 'value'])
+BucketCount = namedtuple('BucketCount', ['bucket', 'count'])
 
 
 class RunningCounter:
     """
-    A running counter keeps counts per interval for a specified period. The
-    interval is specified in seconds and period specifies how many buckets
-    should be kept.
+    A running counter keeps counts per interval for a specified number of
+    buckets
 
     Buckets are addressed using the first epoch second for that interval
     calculated as follows:
@@ -40,7 +39,7 @@ class RunningCounter:
         self,
         redis,
         interval,
-        periods,
+        num_buckets,
         name=None,
         name_prefix='rc',
         group_name=None,
@@ -51,7 +50,7 @@ class RunningCounter:
         Args:
             redis: Redis client instance.
             interval (int): How many seconds are collected in each bucket.
-            periods (int): How many buckets to keep.
+            num_buckets (int): How many buckets to keep.
             name (string): Optional; Name of this running counter.
             name_prefix (string): Optional; Prepended to name to generate Redis
                 key. Name xor group_name must be set.
@@ -62,7 +61,7 @@ class RunningCounter:
             raise ValueError('Either name xor group must be set in __init__')
         self.redis = redis
         self.interval = interval
-        self.periods = periods
+        self.num_buckets = num_buckets
         self.name = name
         self.name_prefix = name_prefix
         self.group_name = group_name
@@ -75,7 +74,7 @@ class RunningCounter:
         Returns:
             Integer seconds for window of Running Counter.
         """
-        return self.interval * self.periods
+        return self.interval * self.num_buckets
 
     def _key(self, name, bucket):
         if self.group_name:
@@ -106,42 +105,43 @@ class RunningCounter:
                 raise ValueError('Name not specified')
             return name
 
-    def _all_buckets(self, recent_periods=None, now=None):
+    def _get_buckets(self, recent_buckets=None, now=None):
         """
-        Get all buckets in running counter's window.
+        Get all buckets in the running counter's window, or only the most
+        recent_buckets.
         """
         now = now or time.time()
         current_bucket = int(now) // self.interval
-        if recent_periods is None:
-            oldest_bucket = current_bucket - self.periods
+        if recent_buckets is None:
+            oldest_bucket = current_bucket - self.num_buckets
         else:
-            if recent_periods > self.periods:
+            if recent_buckets > self.num_buckets:
                 raise ValueError(
-                    'recent_periods must be less or equal to periods '
+                    'recent_buckets must be less or equal to num_buckets '
                     'in __init__'
                 )
-            oldest_bucket = current_bucket - recent_periods
+            oldest_bucket = current_bucket - recent_buckets
         buckets = range(current_bucket, oldest_bucket, -1)
         return buckets
 
-    def buckets(self, name=None, recent_periods=None, now=None):
+    def buckets_counts(self, name=None, recent_buckets=None, now=None):
         """
-        Get RunningCounter bucket counts.
+        Get RunningCounter buckets with counts.
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
-            recent_periods: Optional; Number of most recent periods to consider.
+            recent_buckets: Optional; Number of most recent buckets to consider.
             now: Optional; Specify time to ensure consistency across multiple
                 calls.
 
         Returns:
-            List of BucketValues.
+            List of BucketCount.
         """
         if not now:
             now = time.time()
         name = self._get_name(name)
 
-        buckets = self._all_buckets(recent_periods=recent_periods, now=now)
+        buckets = self._get_buckets(recent_buckets=recent_buckets, now=now)
 
         results = self.redis.mget(
             map(lambda bucket: self._key(name, bucket), buckets)
@@ -149,20 +149,20 @@ class RunningCounter:
 
         counts = [None if v is None else float(v) for v in results]
 
-        bucket_values = [
-            BucketValue(bv[0], bv[1])
+        buckets_counts = [
+            BucketCount(bv[0], bv[1])
             for bv in zip(buckets, counts)
             if bv[1] is not None
         ]
-        return bucket_values
+        return buckets_counts
 
-    def count(self, name=None, recent_periods=None, now=None):
+    def count(self, name=None, recent_buckets=None, now=None):
         """
         Get total count for counter.
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
-            recent_periods: Optional; Number of most recent periods to consider.
+            recent_buckets: Optional; Number of most recent buckets to consider.
             now: Optional; Specify time to ensure consistency across multiple
                 calls.
 
@@ -172,9 +172,9 @@ class RunningCounter:
         name = self._get_name(name)
         return sum(
             [
-                bv.value
-                for bv in self.buckets(
-                    name=name, recent_periods=recent_periods, now=now
+                bv.count
+                for bv in self.buckets_counts(
+                    name=name, recent_buckets=recent_buckets, now=now
                 )
             ]
         )
@@ -198,7 +198,7 @@ class RunningCounter:
 
         bucket = int(now) // self.interval
         bucket_key = self._key(name, bucket)
-        expire = self.periods * self.interval + 15
+        expire = self.num_buckets * self.interval + 15
 
         pipeline = self.redis.pipeline()
         pipeline.incrbyfloat(bucket_key, increment)
@@ -233,12 +233,12 @@ class RunningCounter:
         results = pipeline.execute()
         return [v.decode() if isinstance(v, bytes) else v for v in results[1]]
 
-    def group_counts(self, recent_periods=None):
+    def group_counts(self, recent_buckets=None):
         """
         Get count for each key in group.
 
         Args:
-            recent_periods: Optional; Number of most recent periods to consider.
+            recent_buckets: Optional; Number of most recent buckets to consider.
 
         Returns:
             Dictionary of {[key], [count]}
@@ -250,7 +250,7 @@ class RunningCounter:
         # it might be better to do them one at a time
         for name in self.group():
             values[name] = self.count(
-                name, recent_periods=recent_periods, now=now
+                name, recent_buckets=recent_buckets, now=now
             )
 
         return values
@@ -263,7 +263,7 @@ class RunningCounter:
             name: Optional; Must be provided if not provided to __init__().
         """
         name = self._get_name(name)
-        buckets = self._all_buckets(now=time.time())
+        buckets = self._get_buckets(now=time.time())
         counter_keys = [self._key(name, bucket) for bucket in buckets]
 
         pipeline = self.redis.pipeline()
@@ -279,7 +279,7 @@ class RunningCounter:
         """
         now = time.time()
         all_counters = self.group()
-        buckets = self._all_buckets(now=now)
+        buckets = self._get_buckets(now=now)
         counter_keys = [
             self._key(key, bucket)
             for key, bucket in itertools.product(all_counters, buckets)
