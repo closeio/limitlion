@@ -5,13 +5,13 @@ import time
 import pytest
 from freezefrog import FreezeTime
 
-from limitlion.running_counter import BucketValue, RunningCounter
+from limitlion.running_counter import BucketCount, RunningCounter
 
 
 class TestRunningCounter:
     def test_main(self, redis):
         name = 'test'
-        period = 10
+        num_buckets = 10
         interval = 5
 
         # Start counter now
@@ -20,46 +20,48 @@ class TestRunningCounter:
             counter = RunningCounter(
                 redis,
                 interval,
-                period,
+                num_buckets,
                 name,
             )
             # Add two values to current bucket
             counter.inc(1)
             counter.inc(1.2)
 
-            buckets = counter.buckets()
+            buckets_counts = counter.buckets_counts()
             bucket = int(time.time()) // interval
-            assert buckets == [
-                BucketValue(bucket, 2.2),
+            assert buckets_counts == [
+                BucketCount(bucket, 2.2),
             ]
             assert counter.count() == 2.2
 
         # Move half way into window and add value to bucket
-        now = start + datetime.timedelta(seconds=int(period * interval / 2))
+        now = start + datetime.timedelta(
+            seconds=int(num_buckets * interval / 2)
+        )
         with FreezeTime(now):
             counter.inc(2.3)
-            buckets = counter.buckets()
+            buckets_counts = counter.buckets_counts()
             new_bucket = int(time.time()) // interval
-            assert buckets == [
-                BucketValue(new_bucket, 2.3),
-                BucketValue(bucket, 2.2),
+            assert buckets_counts == [
+                BucketCount(new_bucket, 2.3),
+                BucketCount(bucket, 2.2),
             ]
             assert counter.count() == 4.5
 
         # Move forward enough to drop first bucket
-        now = start + datetime.timedelta(seconds=period * interval + 1)
+        now = start + datetime.timedelta(seconds=num_buckets * interval + 1)
         with FreezeTime(now):
-            buckets = counter.buckets()
-            assert buckets == [BucketValue(new_bucket, 2.3)]
+            buckets_counts = counter.buckets_counts()
+            assert buckets_counts == [BucketCount(new_bucket, 2.3)]
             assert counter.count() == 2.3
 
         # Move forward enough to drop all buckets
         now = start + datetime.timedelta(
-            seconds=period * interval + int(period * interval / 2)
+            seconds=num_buckets * interval + int(num_buckets * interval / 2)
         )
         with FreezeTime(now):
-            buckets = counter.buckets()
-            assert buckets == []
+            buckets_counts = counter.buckets_counts()
+            assert buckets_counts == []
             assert counter.count() == 0
 
     def test_multi_counters_not_allowed(self, redis):
@@ -69,7 +71,7 @@ class TestRunningCounter:
             counter.inc(1, name='test2')
 
         with pytest.raises(ValueError):
-            counter.buckets(name='test2')
+            counter.buckets_counts(name='test2')
 
     def test_window(self, redis):
         counter = RunningCounter(redis, 9, 8, 'test')
@@ -80,16 +82,16 @@ class TestRunningCounter:
         name = 'test'
         counter = RunningCounter(redis, 9, 8, name)
         counter.inc(2.3)
-        buckets = counter.buckets()
-        ttl = redis.ttl(counter._key(name, buckets[0].bucket))
+        buckets_counts = counter.buckets_counts()
+        ttl = redis.ttl(counter._key(name, buckets_counts[0].bucket))
         assert ttl > counter.window
 
         # Test TTL when specifying name in inc
         name = 'test2'
         counter = RunningCounter(redis, 9, 8, name)
         counter.inc(2.3)
-        buckets = counter.buckets(name=name)
-        ttl = redis.ttl(counter._key(name, buckets[0].bucket))
+        buckets_counts = counter.buckets_counts(name=name)
+        ttl = redis.ttl(counter._key(name, buckets_counts[0].bucket))
         assert ttl > counter.window
 
     def test_groups(self, redis):
@@ -152,3 +154,37 @@ class TestRunningCounter:
         counter.inc(name="name2")
         counter.delete_group()
         assert counter.group_counts() == {}
+
+    def test_group_counts_specify_recent_buckets(self, redis):
+        start = datetime.datetime.now()
+        counter = RunningCounter(redis, 10, 10, group_name='group')
+        with FreezeTime(start):
+            counter.inc(1, 'counter1')
+            counter.inc(3, 'counter2')
+
+        with FreezeTime(start + datetime.timedelta(seconds=counter.interval)):
+            counter.inc(1, 'counter1')
+            counter.inc(3, 'counter2')
+        with FreezeTime(
+            start + datetime.timedelta(seconds=counter.interval * 2)
+        ):
+            counter.inc(1, 'counter1')
+            counter.inc(3, 'counter2')
+            assert counter.group_counts(recent_buckets=1) == {
+                'counter1': 1.0,
+                'counter2': 3.0,
+            }
+            assert counter.group_counts(recent_buckets=2) == {
+                'counter1': 2.0,
+                'counter2': 6.0,
+            }
+            assert counter.group_counts() == {
+                'counter1': 3.0,
+                'counter2': 9.0,
+            }
+            assert counter.group_counts(recent_buckets=10) == {
+                'counter1': 3.0,
+                'counter2': 9.0,
+            }
+            with pytest.raises(ValueError):
+                counter.group_counts(recent_buckets=11)
