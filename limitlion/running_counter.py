@@ -256,8 +256,7 @@ class RunningCounter:
 
     def group_buckets_counts(self, recent_buckets=None):
         """
-        Get count for each counter and bucket in group. Missing buckets are
-        filled with 0. Most recent buckets are first.
+        Get count for each counter and bucket in group.
 
         Args:
             recent_buckets: Optional; Number of most recent buckets to consider.
