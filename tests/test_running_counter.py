@@ -11,11 +11,11 @@ from limitlion.running_counter import BucketCount, RunningCounter
 class TestRunningCounter:
     def test_main(self, redis):
         name = 'test'
-        num_buckets = 10
+        num_buckets = 5
         interval = 5
 
         # Start counter now
-        now = start = datetime.datetime.utcnow()
+        now = start = datetime.datetime.utcnow().replace(second=0, minute=0)
         with FreezeTime(now):
             counter = RunningCounter(
                 redis,
@@ -31,6 +31,10 @@ class TestRunningCounter:
             bucket = int(time.time()) // interval
             assert buckets_counts == [
                 BucketCount(bucket, 2.2),
+                BucketCount(bucket - 1, 0),
+                BucketCount(bucket - 2, 0),
+                BucketCount(bucket - 3, 0),
+                BucketCount(bucket - 4, 0),
             ]
             assert counter.count() == 2.2
 
@@ -44,7 +48,10 @@ class TestRunningCounter:
             new_bucket = int(time.time()) // interval
             assert buckets_counts == [
                 BucketCount(new_bucket, 2.3),
-                BucketCount(bucket, 2.2),
+                BucketCount(new_bucket - 1, 0),
+                BucketCount(new_bucket - 2, 2.2),
+                BucketCount(new_bucket - 3, 0),
+                BucketCount(new_bucket - 4, 0),
             ]
             assert counter.count() == 4.5
 
@@ -52,7 +59,13 @@ class TestRunningCounter:
         now = start + datetime.timedelta(seconds=num_buckets * interval + 1)
         with FreezeTime(now):
             buckets_counts = counter.buckets_counts()
-            assert buckets_counts == [BucketCount(new_bucket, 2.3)]
+            assert buckets_counts == [
+                BucketCount(new_bucket + 3, 0),
+                BucketCount(new_bucket + 2, 0),
+                BucketCount(new_bucket + 1, 0),
+                BucketCount(new_bucket, 2.3),
+                BucketCount(new_bucket - 1, 0),
+            ]
             assert counter.count() == 2.3
 
         # Move forward enough to drop all buckets
@@ -61,7 +74,14 @@ class TestRunningCounter:
         )
         with FreezeTime(now):
             buckets_counts = counter.buckets_counts()
-            assert buckets_counts == []
+            current_bucket = int(time.time()) // interval
+            assert buckets_counts == [
+                BucketCount(current_bucket, 0),
+                BucketCount(current_bucket - 1, 0),
+                BucketCount(current_bucket - 2, 0),
+                BucketCount(current_bucket - 3, 0),
+                BucketCount(current_bucket - 4, 0),
+            ]
             assert counter.count() == 0
 
     def test_multi_counters_not_allowed(self, redis):
@@ -154,6 +174,43 @@ class TestRunningCounter:
         counter.inc(name="name2")
         counter.delete_group()
         assert counter.group_counts() == {}
+
+    def test_group_buckets_counts(self, redis):
+        start = datetime.datetime.now()
+        counter = RunningCounter(redis, 10, 5, group_name='group')
+        with FreezeTime(start):
+            counter.inc(1, 'counter1')
+            counter.inc(1, 'counter2')
+        with FreezeTime(
+            start + datetime.timedelta(seconds=counter.interval * 2)
+        ):
+            counter.inc(2, 'counter1')
+            counter.inc(3, 'counter2')
+        with FreezeTime(
+            start + datetime.timedelta(seconds=counter.interval * 4)
+        ):
+            current_bucket = int(time.time()) // 10
+            counter1_values = [0, 0, 2.0, 0, 1.0]
+            counter2_values = [0, 0, 3.0, 0, 1.0]
+            buckets = list(
+                range(current_bucket, current_bucket - counter.num_buckets, -1)
+            )
+            counter1_bucket_values = [
+                BucketCount(bucket=bucket, count=count)
+                for bucket, count in zip(buckets, counter1_values)
+            ]
+            counter2_bucket_values = [
+                BucketCount(bucket=bucket, count=count)
+                for bucket, count in zip(buckets, counter2_values)
+            ]
+            assert counter.group_buckets_counts() == {
+                'counter1': counter1_bucket_values,
+                'counter2': counter2_bucket_values,
+            }
+            assert counter.group_buckets_counts(3) == {
+                'counter1': counter1_bucket_values[:3],
+                'counter2': counter2_bucket_values[:3],
+            }
 
     def test_group_counts_specify_recent_buckets(self, redis):
         start = datetime.datetime.now()
