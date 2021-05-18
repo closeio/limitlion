@@ -126,7 +126,8 @@ class RunningCounter:
 
     def buckets_counts(self, name=None, recent_buckets=None, now=None):
         """
-        Get RunningCounter buckets with counts.
+        Get RunningCounter buckets with counts. Missing buckets are filled
+        with 0. Most recent buckets are first.
 
         Args:
             name: Optional; Must be provided if not provided to __init__().
@@ -147,12 +148,10 @@ class RunningCounter:
             map(lambda bucket: self._key(name, bucket), buckets)
         )
 
-        counts = [None if v is None else float(v) for v in results]
+        counts = [0 if v is None else float(v) for v in results]
 
         buckets_counts = [
-            BucketCount(bv[0], bv[1])
-            for bv in zip(buckets, counts)
-            if bv[1] is not None
+            BucketCount(bv[0], bv[1]) for bv in zip(buckets, counts)
         ]
         return buckets_counts
 
@@ -235,13 +234,13 @@ class RunningCounter:
 
     def group_counts(self, recent_buckets=None):
         """
-        Get count for each key in group.
+        Get count for each counter in group.
 
         Args:
             recent_buckets: Optional; Number of most recent buckets to consider.
 
         Returns:
-            Dictionary of {[key], [count]}
+            Dictionary of {[couter name], [count]}
         """
         values = {}
         # Ensure consistent time across all keys in group
@@ -250,6 +249,25 @@ class RunningCounter:
         # it might be better to do them one at a time
         for name in self.group():
             values[name] = self.count(
+                name, recent_buckets=recent_buckets, now=now
+            )
+
+        return values
+
+    def group_buckets_counts(self, recent_buckets=None):
+        """
+        Get count for each counter and bucket in group.
+
+        Args:
+            recent_buckets: Optional; Number of most recent buckets to consider.
+
+        Returns:
+            Dictionary of {[counter name], [BucketCount]}
+        """
+        values = {}
+        now = time.time()
+        for name in self.group():
+            values[name] = self.buckets_counts(
                 name, recent_buckets=recent_buckets, now=now
             )
 
