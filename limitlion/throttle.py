@@ -83,9 +83,8 @@ def throttle(
 
     _verify_configured()
     allowed, tokens, sleep = throttle_script(
-        keys=[],
+        keys=[KEY_FORMAT.format(name)],
         args=[
-            KEY_FORMAT.format(name),
             rps,
             burst,
             window,
