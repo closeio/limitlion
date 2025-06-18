@@ -16,7 +16,7 @@ jobs:
     
     services:
       redis:
-        image: redis:3.2
+        image: redis:7
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
