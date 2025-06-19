@@ -1,10 +1,75 @@
-[tool.black]
-skip-string-normalization = true
+[project]
+name = "limitlion"
+version = "1.0.0"
+description = "Close LimitLion"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "redis>=4"
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "coverage",
+    "pytest-cov",
+    "ruff",
+    "freezefrog>=0.4.1"
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+limitlion = ["*.lua"]
+
+[tool.ruff]
 line-length = 79
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | ui
-)/
-'''
+exclude = [".git", ".venv", "ui"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "C90", # mccabe complexity
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "F403",  # star imports
+    "F405",  # undefined names from star imports
+    "N806",  # variable should be lowercase
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.isort]
+known-first-party = ["limitlion"]
+known-third-party = []
+section-order = ["future", "standard-library", "third-party", "first-party", "tests", "local-folder"]
+split-on-trailing-comma = false
+
+[tool.ruff.lint.isort.sections]
+tests = ["tests"]
+
+[tool.ruff.format]
+quote-style = "single"
+skip-magic-trailing-comma = true
