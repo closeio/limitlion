@@ -1,8 +1,7 @@
 """Token bucket throttle backed by Redis."""
 
 import time
-
-import pkg_resources
+from importlib import resources
 
 KEY_FORMAT = 'throttle:{}'
 
@@ -105,9 +104,7 @@ def throttle_configure(redis_instance, testing=False):
     global redis, throttle_script
     redis = redis_instance
 
-    lua_script = pkg_resources.resource_string(
-        __name__, 'throttle.lua'
-    ).decode()
+    lua_script = resources.files(__package__).joinpath('throttle.lua').read_text()
 
     # Modify scripts when testing so time can be frozen
     if testing:

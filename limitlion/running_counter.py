@@ -3,9 +3,9 @@ import time
 from collections import namedtuple
 from distutils.version import LooseVersion
 
-import pkg_resources
+from importlib.metadata import version
 
-REDIS_PY_VERSION = pkg_resources.get_distribution("redis").version
+REDIS_PY_VERSION = version("redis")
 IS_REDIS_PY_2 = LooseVersion(REDIS_PY_VERSION) < LooseVersion("3")
 
 
