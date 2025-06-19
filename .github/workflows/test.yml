@@ -32,7 +32,7 @@ jobs:
       uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
-        cache-dependency-glob: "requirements*.txt"
+        cache-dependency-glob: "pyproject.toml"
     
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
