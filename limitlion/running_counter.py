@@ -1,11 +1,12 @@
 import itertools
 import time
 from collections import namedtuple
-from distutils.version import LooseVersion
 from importlib.metadata import version
 
+from packaging.version import Version
+
 REDIS_PY_VERSION = version("redis")
-IS_REDIS_PY_2 = LooseVersion(REDIS_PY_VERSION) < LooseVersion("3")
+IS_REDIS_PY_2 = Version(REDIS_PY_VERSION) < Version("3")
 
 
 BucketCount = namedtuple('BucketCount', ['bucket', 'count'])
