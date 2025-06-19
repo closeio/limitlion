@@ -2,7 +2,6 @@ import itertools
 import time
 from collections import namedtuple
 from distutils.version import LooseVersion
-
 from importlib.metadata import version
 
 REDIS_PY_VERSION = version("redis")
