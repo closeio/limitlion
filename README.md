@@ -1,5 +1,5 @@
 
-[![CircleCI](https://circleci.com/gh/closeio/limitlion.svg?style=svg)](https://circleci.com/gh/closeio/limitlion)
+[![Test](https://github.com/closeio/limitlion/actions/workflows/test.yml/badge.svg)](https://github.com/closeio/limitlion/actions/workflows/test.yml)
 # LimitLion
 
 A token bucket rate limiting throttle using Redis as the backend. Inspired by
