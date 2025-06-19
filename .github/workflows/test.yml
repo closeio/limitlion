@@ -42,7 +42,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 flake8-docstrings flake8-polyfill pep8 pep8-naming isort
+        pip install ruff
         pip install --no-deps -r requirements.txt
         pip install -r requirements_test.txt
     
@@ -52,8 +52,8 @@ jobs:
     
     - name: Linting
       run: |
-        flake8
-        isort -rc -c .
+        ruff check .
+        ruff format --check .
         luacheck --max-cyclomatic-complexity 11 --globals redis ARGV KEYS -r limitlion
     
     - name: Run tests with coverage

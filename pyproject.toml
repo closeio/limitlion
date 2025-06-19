@@ -1,10 +1,35 @@
-[tool.black]
-skip-string-normalization = true
+[tool.ruff]
 line-length = 79
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | ui
-)/
-'''
+exclude = [".git", ".venv", "ui"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "C90", # mccabe complexity
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "F403",  # star imports
+    "F405",  # undefined names from star imports
+    "N806",  # variable should be lowercase
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.isort]
+known-first-party = ["limitlion"]
+known-third-party = []
+section-order = ["future", "standard-library", "third-party", "first-party", "tests", "local-folder"]
+split-on-trailing-comma = false
+
+[tool.ruff.lint.isort.sections]
+tests = ["tests"]
+
+[tool.ruff.format]
+quote-style = "single"
+skip-magic-trailing-comma = true
