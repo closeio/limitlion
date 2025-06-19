@@ -1,4 +1,5 @@
 """LimitLion tests."""
+
 import datetime
 import time
 
@@ -17,12 +18,7 @@ class TestRunningCounter:
         # Start counter now
         now = start = datetime.datetime.utcnow().replace(second=0, minute=0)
         with FreezeTime(now):
-            counter = RunningCounter(
-                redis,
-                interval,
-                num_buckets,
-                name,
-            )
+            counter = RunningCounter(redis, interval, num_buckets, name)
             # Add two values to current bucket
             counter.inc(1)
             counter.inc(1.2)
@@ -167,11 +163,11 @@ class TestRunningCounter:
 
     def test_delete_group_counter(self, redis):
         counter = RunningCounter(redis, 1, 1, group_name='group')
-        counter.inc(name="name1")
-        counter.delete(name="name1")
+        counter.inc(name='name1')
+        counter.delete(name='name1')
         assert counter.group_counts() == {}
-        counter.inc(name="name1")
-        counter.inc(name="name2")
+        counter.inc(name='name1')
+        counter.inc(name='name2')
         counter.delete_group()
         assert counter.group_counts() == {}
 
@@ -235,10 +231,7 @@ class TestRunningCounter:
                 'counter1': 2.0,
                 'counter2': 6.0,
             }
-            assert counter.group_counts() == {
-                'counter1': 3.0,
-                'counter2': 9.0,
-            }
+            assert counter.group_counts() == {'counter1': 3.0, 'counter2': 9.0}
             assert counter.group_counts(recent_buckets=10) == {
                 'counter1': 3.0,
                 'counter2': 9.0,

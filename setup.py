@@ -6,7 +6,7 @@ install_requires = ['redis>=2']
 
 tests_require = install_requires + ['pytest', 'pytest-cov']
 
-with open("README.md", "r") as fh:
+with open('README.md', 'r') as fh:
     long_description = fh.read()
 
 setup(
@@ -15,7 +15,7 @@ setup(
     url='http://github.com/closeio/limitlion',
     description='Close LimitLion',
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type='text/markdown',
     platforms='any',
     classifiers=[
         'Intended Audience :: Developers',
@@ -28,9 +28,7 @@ setup(
         'Programming Language :: Python :: 3.13',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    packages=[
-        'limitlion',
-    ],
+    packages=['limitlion'],
     package_data={'limitlion': ['*.lua']},
     install_requires=install_requires,
     tests_require=tests_require,
