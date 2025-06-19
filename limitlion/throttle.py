@@ -104,7 +104,9 @@ def throttle_configure(redis_instance, testing=False):
     global redis, throttle_script
     redis = redis_instance
 
-    lua_script = resources.files(__package__).joinpath('throttle.lua').read_text()
+    lua_script = (
+        resources.files(__package__).joinpath('throttle.lua').read_text()
+    )
 
     # Modify scripts when testing so time can be frozen
     if testing:
