@@ -95,12 +95,12 @@ local function update_bucket(bucket_key, allowed, refreshed,
   return new_tokens
 end
 
-local name = ARGV[1]
-local default_rps = ARGV[2]
-local default_burst = ARGV[3]
-local default_window = ARGV[4]
-local requested_tokens = tonumber(ARGV[5])
-local knobs_ttl = tonumber(ARGV[6])
+local name = KEYS[1]
+local default_rps = ARGV[1]
+local default_burst = ARGV[2]
+local default_window = ARGV[3]
+local requested_tokens = tonumber(ARGV[4])
+local knobs_ttl = tonumber(ARGV[5])
 local rps
 local burst
 local window
