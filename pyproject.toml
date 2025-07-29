@@ -73,3 +73,6 @@ tests = ["tests"]
 [tool.ruff.format]
 quote-style = "single"
 skip-magic-trailing-comma = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
