@@ -1,6 +1,6 @@
 [project]
 name = "limitlion"
-version = "1.0.0"
+version = "1.1.0"
 description = "Close LimitLion"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -73,3 +73,6 @@ tests = ["tests"]
 [tool.ruff.format]
 quote-style = "single"
 skip-magic-trailing-comma = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
