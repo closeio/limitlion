@@ -26,7 +26,7 @@ jobs:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Install uv
       uses: astral-sh/setup-uv@v6
@@ -62,7 +62,7 @@ jobs:
         uv run pytest --cov=limitlion --cov-report=xml
     
     - name: Upload coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-report-py${{ matrix.python-version }}-redis${{ matrix.redis-client-version }}
         path: coverage.xml
